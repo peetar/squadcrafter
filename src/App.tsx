@@ -17,6 +17,7 @@ import { NewGameModal } from './components/game/NewGameModal';
 import { ShareTransferModal } from './components/share/ShareTransferModal';
 import { ImportConfirmationModal } from './components/share/ImportConfirmationModal';
 import { ManualImportModal } from './components/share/ManualImportModal';
+import { MatchRecapModal } from './components/game/MatchRecapModal';
 import { extractPayloadFromInput, SharePayload } from './utils/shareCompression';
 import { FORMATIONS } from './data/formations';
 import { Player, Team, Game, PositionCategory, TacticalOverrideType } from './types/soccer';
@@ -31,6 +32,16 @@ export function App() {
   const [singleSubTarget, setSingleSubTarget] = useState<Player | null>(null);
   const [showFullBenchSwap, setShowFullBenchSwap] = useState<boolean>(false);
   const [showNewGameModal, setShowNewGameModal] = useState<boolean>(false);
+  const [selectedRecapGame, setSelectedRecapGame] = useState<Game | null>(null);
+  const [isNewlyFinished, setIsNewlyFinished] = useState<boolean>(false);
+
+  const handleEndGame = () => {
+    if (!store.activeGame) return;
+    const finishedGame = { ...store.activeGame, status: 'finished' as const };
+    store.endGame();
+    setSelectedRecapGame(finishedGame);
+    setIsNewlyFinished(true);
+  };
 
   // Transfer & Share modals state
   const [sharePayload, setSharePayload] = useState<SharePayload | null>(null);
@@ -195,11 +206,12 @@ export function App() {
         onSetGameStatus={store.setGameStatus}
         onRegisterGoal={store.registerGoal}
         onRegisterOpponentGoal={store.registerOpponentGoal}
+        onAdjustScore={store.adjustScore}
         onToggleCleanGoalie={store.toggleCleanGoalieSwaps}
         onNewGameClick={() => setShowNewGameModal(true)}
         onSwitchTeam={() => store.setActiveTeamId(null)}
         onAdvancePeriod={store.advancePeriod}
-        onEndGame={store.endGame}
+        onEndGame={handleEndGame}
       />
 
       {/* Main Content Viewport */}
@@ -296,7 +308,7 @@ export function App() {
                 onSwapPositions={store.swapFieldPositions}
                 onDirectAssignSlot={store.assignBenchPlayerToSlot}
                 onAdvancePeriod={store.advancePeriod}
-                onEndGame={store.endGame}
+                onEndGame={handleEndGame}
               />
             )}
 
@@ -310,7 +322,7 @@ export function App() {
                 onOpenBenchSwap={() => setShowFullBenchSwap(true)}
                 onDirectSubTrigger={handleSuggestSub}
                 onAdvancePeriod={store.advancePeriod}
-                onEndGame={store.endGame}
+                onEndGame={handleEndGame}
               />
             )}
 
@@ -339,14 +351,22 @@ export function App() {
               />
             )}
 
-            {/* Tab 5: Fair Play & Stats */}
-            {activeTab === 'stats' && store.activeGame && (
+            {/* Tab 5: Fair Play & Stats & Match History */}
+            {activeTab === 'stats' && store.activeTeam && (
               <GameStatsSummary
                 game={store.activeGame}
                 team={store.activeTeam}
                 players={currentRoster}
+                savedGames={store.savedGames}
                 onAdvancePeriod={store.advancePeriod}
-                onEndGame={store.endGame}
+                onEndGame={handleEndGame}
+                onSelectPastGame={(pastGame) => {
+                  setSelectedRecapGame(pastGame);
+                  setIsNewlyFinished(false);
+                }}
+                onDeleteSavedGame={store.deleteSavedGame}
+                onRegisterOpponentGoal={store.registerOpponentGoal}
+                onAdjustScore={store.adjustScore}
               />
             )}
           </>
@@ -424,6 +444,21 @@ export function App() {
             store.setActiveTeamId(teamId);
             store.createNewGame(teamId, opp, count, formId, subMode, cleanGk, periods, dur);
             setActiveTab('pitch');
+          }}
+        />
+      )}
+
+      {/* Post-Game Match Recap Modal */}
+      {selectedRecapGame && (
+        <MatchRecapModal
+          isOpen={Boolean(selectedRecapGame)}
+          game={selectedRecapGame}
+          team={store.teams.find(t => t.id === selectedRecapGame.teamId) || store.activeTeam}
+          players={store.teams.find(t => t.id === selectedRecapGame.teamId)?.players || currentRoster}
+          isNewlyFinished={isNewlyFinished}
+          onClose={() => {
+            setSelectedRecapGame(null);
+            setIsNewlyFinished(false);
           }}
         />
       )}

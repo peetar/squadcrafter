@@ -527,10 +527,44 @@ export function useSoccerStore() {
               matchSecond: Math.floor(prev.activeGame.totalElapsedSeconds),
               period: prev.activeGame.currentPeriod,
               type: 'goal',
-              description: 'Opponent scored a goal.',
+              description: `Opponent scored a goal (${prev.activeGame.opponentName}).`,
               timestamp: Date.now(),
             }
           ]
+        },
+      };
+    });
+  }, []);
+
+  // Adjust Score (+1 or -1 for either team)
+  const adjustScore = useCallback((side: 'us' | 'them', delta: number) => {
+    setState(prev => {
+      if (!prev.activeGame) return prev;
+      const currentScore = side === 'us' ? prev.activeGame.scoreUs : prev.activeGame.scoreThem;
+      const newScore = Math.max(0, currentScore + delta);
+      if (newScore === currentScore) return prev;
+
+      const eventDescription = delta > 0
+        ? (side === 'us' ? 'Goal recorded for team.' : `Opponent scored a goal (${prev.activeGame.opponentName}).`)
+        : (side === 'us' ? 'Team goal corrected (-1).' : `Opponent goal corrected (-1).`);
+
+      const event: MatchEvent = {
+        id: 'evt-score-adj-' + Date.now(),
+        gameId: prev.activeGame.id,
+        matchSecond: Math.floor(prev.activeGame.totalElapsedSeconds),
+        period: prev.activeGame.currentPeriod,
+        type: 'goal',
+        description: eventDescription,
+        timestamp: Date.now(),
+      };
+
+      return {
+        ...prev,
+        activeGame: {
+          ...prev.activeGame,
+          scoreUs: side === 'us' ? newScore : prev.activeGame.scoreUs,
+          scoreThem: side === 'them' ? newScore : prev.activeGame.scoreThem,
+          events: [...prev.activeGame.events, event],
         },
       };
     });
@@ -864,11 +898,12 @@ export function useSoccerStore() {
     });
   }, []);
 
-  // End & Save Game
-  const endGame = useCallback(() => {
+  // End & Save Game (returns the finished game object for post-match recap)
+  const endGame = useCallback((): Game | null => {
+    let finishedGame: Game | null = null;
     setState(prev => {
       if (!prev.activeGame) return prev;
-      const finishedGame: Game = {
+      finishedGame = {
         ...prev.activeGame,
         status: 'finished',
       };
@@ -878,6 +913,15 @@ export function useSoccerStore() {
         savedGames: [finishedGame, ...prev.savedGames],
       };
     });
+    return finishedGame;
+  }, []);
+
+  // Delete a saved match from history
+  const deleteSavedGame = useCallback((gameId: string) => {
+    setState(prev => ({
+      ...prev,
+      savedGames: prev.savedGames.filter(g => g.id !== gameId),
+    }));
   }, []);
 
   // Toggle Clean Goalie Swaps setting in active game
@@ -919,6 +963,8 @@ export function useSoccerStore() {
     togglePlayerTired,
     registerGoal,
     registerOpponentGoal,
+    adjustScore,
+    deleteSavedGame,
     queueSub,
     queueMultipleSubs,
     cancelQueuedSub,

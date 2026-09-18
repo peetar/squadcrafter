@@ -16,6 +16,7 @@ interface HeaderProps {
   onSwitchTeam?: () => void;
   onAdvancePeriod?: () => void;
   onEndGame?: () => void;
+  onAdjustScore?: (side: 'us' | 'them', delta: number) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -28,6 +29,7 @@ export const Header: React.FC<HeaderProps> = ({
   onSwitchTeam,
   onAdvancePeriod,
   onEndGame,
+  onAdjustScore,
 }) => {
   const { isFullscreen, toggleFullscreen } = useFullscreen();
 
@@ -105,16 +107,26 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             {/* Scoreboard */}
-            <div className="flex items-center gap-1 px-1 font-mono text-sm sm:text-base font-extrabold tracking-tight">
-              <span className="text-emerald-400">{game.scoreUs}</span>
-              <span className="text-slate-600">-</span>
-              <button 
-                onClick={onRegisterOpponentGoal}
-                title="Tap to add opponent goal"
-                className="text-slate-300 hover:text-red-400 active:scale-90 transition"
-              >
-                {game.scoreThem}
-              </button>
+            <div className="flex items-center gap-1.5 px-1 font-mono text-xs sm:text-sm font-extrabold tracking-tight">
+              {/* Us */}
+              <div className="flex items-center gap-1 bg-emerald-950/60 border border-emerald-800/60 px-1.5 py-0.5 rounded-lg text-emerald-400">
+                <span className="text-[10px] font-sans font-bold text-emerald-500 uppercase tracking-tighter hidden xs:inline">Us</span>
+                <span className="text-sm sm:text-base font-black">{game.scoreUs}</span>
+              </div>
+
+              <span className="text-slate-600 font-bold">-</span>
+
+              {/* Opponent with explicit + Goal button */}
+              <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded-lg">
+                <span className="text-sm sm:text-base font-black text-slate-200">{game.scoreThem}</span>
+                <button 
+                  onClick={onRegisterOpponentGoal}
+                  title={`Add opponent goal (${game.opponentName})`}
+                  className="w-4 h-4 rounded bg-red-950/80 hover:bg-red-800 text-red-300 border border-red-700/60 flex items-center justify-center text-[10px] font-black active:scale-90 transition ml-0.5"
+                >
+                  +
+                </button>
+              </div>
             </div>
 
             {/* Clock & Period */}
