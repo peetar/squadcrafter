@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="pitchGrad512" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#15803d" />
+      <stop offset="100%" stop-color="#052e16" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#pitchGrad512)"/>
+  <!-- Field markings -->
+  <rect x="50" y="50" width="412" height="412" rx="16" fill="none" stroke="#ffffff" stroke-width="10" opacity="0.8"/>
+  <line x1="50" y1="256" x2="462" y2="256" stroke="#ffffff" stroke-width="10" opacity="0.8"/>
+  <circle cx="256" cy="256" r="70" fill="none" stroke="#ffffff" stroke-width="10" opacity="0.8"/>
+  <circle cx="256" cy="256" r="10" fill="#ffffff" opacity="0.9"/>
+  <!-- Goal areas -->
+  <rect x="186" y="50" width="140" height="60" fill="none" stroke="#ffffff" stroke-width="8" opacity="0.8"/>
+  <rect x="186" y="402" width="140" height="60" fill="none" stroke="#ffffff" stroke-width="8" opacity="0.8"/>
+  <!-- Tactical tokens -->
+  <circle cx="150" cy="170" r="32" fill="#2563eb" stroke="#ffffff" stroke-width="6"/>
+  <text x="150" y="182" font-family="Arial, sans-serif" font-size="30" font-weight="bold" fill="#ffffff" text-anchor="middle">10</text>
+  <circle cx="362" cy="170" r="32" fill="#2563eb" stroke="#ffffff" stroke-width="6"/>
+  <text x="362" y="182" font-family="Arial, sans-serif" font-size="30" font-weight="bold" fill="#ffffff" text-anchor="middle">9</text>
+  <circle cx="256" cy="370" r="32" fill="#eab308" stroke="#ffffff" stroke-width="6"/>
+  <text x="256" y="381" font-family="Arial, sans-serif" font-size="26" font-weight="bold" fill="#ffffff" text-anchor="middle">GK</text>
+</svg>
