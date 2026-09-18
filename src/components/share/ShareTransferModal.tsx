@@ -19,6 +19,7 @@ export const ShareTransferModal: React.FC<ShareTransferModalProps> = ({
   payload,
 }) => {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [qrError, setQrError] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState<string>('');
   const [compressedCode, setCompressedCode] = useState<string>('');
   const [copiedLink, setCopiedLink] = useState(false);
@@ -29,6 +30,7 @@ export const ShareTransferModal: React.FC<ShareTransferModalProps> = ({
   useEffect(() => {
     if (!isOpen || !payload) {
       setQrDataUrl(null);
+      setQrError(null);
       setShareUrl('');
       setCompressedCode('');
       setIsLoading(false);
@@ -37,6 +39,7 @@ export const ShareTransferModal: React.FC<ShareTransferModalProps> = ({
 
     let isMounted = true;
     setIsLoading(true);
+    setQrError(null);
 
     try {
       const url = generateShareUrl(payload);
@@ -47,15 +50,22 @@ export const ShareTransferModal: React.FC<ShareTransferModalProps> = ({
       generateQrCodeDataUrl(url).then(dataUrl => {
         if (isMounted) {
           setQrDataUrl(dataUrl);
+          setQrError(null);
           setIsLoading(false);
         }
       }).catch(err => {
         console.error('Failed to generate QR code:', err);
-        if (isMounted) setIsLoading(false);
+        if (isMounted) {
+          setQrError('This backup contains too much data to fit into a single QR Code image. Use the "Copy Transfer Link" or "Export File" button below instead!');
+          setIsLoading(false);
+        }
       });
     } catch (e) {
       console.error('Error generating share link:', e);
-      setIsLoading(false);
+      if (isMounted) {
+        setQrError('Failed to encode transfer payload.');
+        setIsLoading(false);
+      }
     }
 
     return () => {
@@ -110,7 +120,7 @@ export const ShareTransferModal: React.FC<ShareTransferModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
         {/* Modal Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
           <div className="flex items-center gap-2.5">
@@ -137,19 +147,29 @@ export const ShareTransferModal: React.FC<ShareTransferModalProps> = ({
         {/* Modal Body */}
         <div className="p-5 overflow-y-auto space-y-4 text-center">
           {/* QR Code Container */}
-          <div className="relative mx-auto w-64 h-64 bg-white p-3 rounded-2xl shadow-xl flex items-center justify-center">
-            {isLoading || !qrDataUrl ? (
+          <div className="relative mx-auto w-72 h-72 sm:w-80 sm:h-80 bg-white p-4 rounded-3xl shadow-2xl flex items-center justify-center border-4 border-white">
+            {isLoading ? (
               <div className="flex flex-col items-center gap-2 text-slate-500 text-xs">
                 <div className="w-6 h-6 border-2 border-slate-400 border-t-emerald-600 rounded-full animate-spin" />
                 <span>Generating QR Code...</span>
               </div>
-            ) : (
+            ) : qrError ? (
+              <div className="flex flex-col items-center justify-center text-center p-4 text-slate-800 space-y-2">
+                <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center text-2xl mx-auto">
+                  ⚠️
+                </div>
+                <div className="font-extrabold text-xs text-slate-900 leading-tight">Data Exceeds QR Code Size</div>
+                <p className="text-[10px] text-slate-600 leading-tight">
+                  This entire multi-team backup is too large for an optical QR code. Tap <strong>Copy Transfer Link</strong> or <strong>Share via App</strong> below to send it to your phone!
+                </p>
+              </div>
+            ) : qrDataUrl ? (
               <img 
                 src={qrDataUrl} 
                 alt="SquadCrafter Transfer QR Code" 
                 className="w-full h-full object-contain rounded-lg"
               />
-            )}
+            ) : null}
           </div>
 
           {/* Quick Scan Instructions */}
