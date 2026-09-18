@@ -218,7 +218,7 @@ export function App() {
   // =========================================================================
   if (!store.activeTeam) {
     return (
-      <div className="flex flex-col h-full min-h-screen bg-slate-950 text-slate-100 select-none">
+      <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 select-none">
         {/* Simplified Header on landing page */}
         <Header
           game={null}
@@ -230,7 +230,7 @@ export function App() {
           onNewGameClick={() => {}}
         />
 
-        <main className="flex-1 min-h-0 flex flex-col overflow-y-auto">
+        <main className="flex-1 w-full overflow-y-auto">
           <TeamSelectionScreen
             teams={store.teams}
             onSelectTeam={(teamId) => {

@@ -115,7 +115,7 @@ export const TeamSelectionScreen: React.FC<TeamSelectionScreenProps> = ({
   };
 
   return (
-    <div className="flex flex-col flex-1 min-h-full max-w-lg mx-auto w-full px-4 py-6 space-y-6 pb-20">
+    <div className="flex flex-col flex-1 min-h-full max-w-lg mx-auto w-full px-4 py-6 space-y-6 pb-32">
       {/* Hero Welcome Header */}
       <div className="text-center space-y-2">
         <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center text-2xl mx-auto shadow-xl shadow-emerald-950/40">
