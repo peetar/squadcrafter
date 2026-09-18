@@ -12,9 +12,12 @@ import {
   RotateCcw, 
   CheckCircle2, 
   ShieldCheck,
-  Award,
-  QrCode,
-  Share2
+  Award, 
+  QrCode, 
+  Share2,
+  Smartphone,
+  DownloadCloud,
+  Sparkles
 } from 'lucide-react';
 
 interface TeamSelectionScreenProps {
@@ -27,6 +30,10 @@ interface TeamSelectionScreenProps {
   onShareBackup?: () => void;
   onOpenManualImport?: () => void;
   activeGameTeamId?: string | null;
+  isPwaInstalled?: boolean;
+  onOpenPwaInstructions?: () => void;
+  deferredPrompt?: any;
+  onNativeInstallPrompt?: () => void;
 }
 
 export const TeamSelectionScreen: React.FC<TeamSelectionScreenProps> = ({
@@ -39,6 +46,10 @@ export const TeamSelectionScreen: React.FC<TeamSelectionScreenProps> = ({
   onShareBackup,
   onOpenManualImport,
   activeGameTeamId,
+  isPwaInstalled = false,
+  onOpenPwaInstructions,
+  deferredPrompt,
+  onNativeInstallPrompt,
 }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [teamName, setTeamName] = useState('');
@@ -301,6 +312,51 @@ export const TeamSelectionScreen: React.FC<TeamSelectionScreenProps> = ({
           </button>
         </div>
       </div>
+
+      {/* PWA App Install Banner (only shown if not already running as installed standalone PWA) */}
+      {!isPwaInstalled && onOpenPwaInstructions && (
+        <div className="relative overflow-hidden bg-gradient-to-r from-blue-950/80 via-indigo-950/60 to-purple-950/80 border border-blue-500/40 rounded-3xl p-4 shadow-xl shadow-blue-950/30">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-500 to-indigo-500 text-white flex items-center justify-center text-xl shadow-lg flex-shrink-0">
+                📲
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-sm text-white tracking-tight">Install App on Phone</span>
+                  <span className="text-[10px] font-black uppercase bg-blue-500/20 text-blue-300 border border-blue-400/30 px-2 py-0.5 rounded-full">
+                    PWA Ready
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Run full screen without browser bars &amp; manage subs offline at the field with no cell service.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3.5 flex items-center gap-2">
+            <button
+              onClick={onOpenPwaInstructions}
+              className="flex-1 py-2.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-98 text-white font-extrabold text-xs rounded-xl shadow-lg flex items-center justify-center gap-2 transition"
+            >
+              <Smartphone className="w-4 h-4 text-blue-200" />
+              <span>PWA Install Instructions</span>
+            </button>
+
+            {deferredPrompt && onNativeInstallPrompt && (
+              <button
+                onClick={onNativeInstallPrompt}
+                className="py-2.5 px-3.5 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-extrabold text-xs rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition flex-shrink-0"
+                title="1-Tap Native Install"
+              >
+                <DownloadCloud className="w-4 h-4" />
+                <span>1-Tap</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Create Team Modal */}
       {showCreateModal && (

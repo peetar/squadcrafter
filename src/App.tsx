@@ -18,6 +18,7 @@ import { ShareTransferModal } from './components/share/ShareTransferModal';
 import { ImportConfirmationModal } from './components/share/ImportConfirmationModal';
 import { ManualImportModal } from './components/share/ManualImportModal';
 import { MatchRecapModal } from './components/game/MatchRecapModal';
+import { PwaInstallModal } from './components/pwa/PwaInstallModal';
 import { extractPayloadFromInput, SharePayload } from './utils/shareCompression';
 import { FORMATIONS } from './data/formations';
 import { Player, Team, Game, PositionCategory, TacticalOverrideType } from './types/soccer';
@@ -48,6 +49,56 @@ export function App() {
   const [incomingPayload, setIncomingPayload] = useState<SharePayload | null>(null);
   const [showManualImport, setShowManualImport] = useState<boolean>(false);
   const [transferToast, setTransferToast] = useState<string | null>(null);
+
+  // PWA installation detection & modal state
+  const [showPwaModal, setShowPwaModal] = useState<boolean>(false);
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<any>(null);
+  const [isPwaInstalled, setIsPwaInstalled] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const isStandaloneDisplay = window.matchMedia('(display-mode: standalone)').matches;
+    const isIosStandalone = (window.navigator as any).standalone === true;
+    return isStandaloneDisplay || isIosStandalone;
+  });
+
+  useEffect(() => {
+    // Detect display mode changes
+    const mediaQuery = window.matchMedia('(display-mode: standalone)');
+    const handleDisplayModeChange = (e: MediaQueryListEvent) => {
+      if (e.matches) setIsPwaInstalled(true);
+    };
+    mediaQuery.addEventListener('change', handleDisplayModeChange);
+
+    // Capture Chrome/Android beforeinstallprompt event
+    const handleBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setDeferredInstallPrompt(e);
+    };
+
+    const handleAppInstalled = () => {
+      setIsPwaInstalled(true);
+      setDeferredInstallPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      mediaQuery.removeEventListener('change', handleDisplayModeChange);
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleTriggerNativeInstall = async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    const choiceResult = await deferredInstallPrompt.userChoice;
+    if (choiceResult.outcome === 'accepted') {
+      setIsPwaInstalled(true);
+      setShowPwaModal(false);
+    }
+    setDeferredInstallPrompt(null);
+  };
 
   // Detect incoming transfer URL from hash (#import=...) or query (?import=...)
   useEffect(() => {
@@ -104,6 +155,13 @@ export function App() {
         isOpen={showManualImport}
         onClose={() => setShowManualImport(false)}
         onPayloadExtracted={(payload) => setIncomingPayload(payload)}
+      />
+
+      <PwaInstallModal
+        isOpen={showPwaModal}
+        onClose={() => setShowPwaModal(false)}
+        deferredPrompt={deferredInstallPrompt}
+        onNativeInstallPrompt={handleTriggerNativeInstall}
       />
 
       {transferToast && (
@@ -186,6 +244,10 @@ export function App() {
             onShareBackup={() => setSharePayload({ type: 'backup', version: 1, data: { teams: store.teams, savedGames: store.savedGames } })}
             onOpenManualImport={() => setShowManualImport(true)}
             activeGameTeamId={store.activeGame?.teamId}
+            isPwaInstalled={isPwaInstalled}
+            onOpenPwaInstructions={() => setShowPwaModal(true)}
+            deferredPrompt={deferredInstallPrompt}
+            onNativeInstallPrompt={handleTriggerNativeInstall}
           />
         </main>
 
