@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSoccerStore } from './store/useSoccerStore';
 import { useGameTimer } from './hooks/useGameTimer';
 import { Header } from './components/layout/Header';
@@ -14,9 +14,13 @@ import { PlayerActionSheet } from './components/player/PlayerActionSheet';
 import { SingleSubModal } from './components/subs/SingleSubModal';
 import { FullBenchSwapModal } from './components/subs/FullBenchSwapModal';
 import { NewGameModal } from './components/game/NewGameModal';
+import { ShareTransferModal } from './components/share/ShareTransferModal';
+import { ImportConfirmationModal } from './components/share/ImportConfirmationModal';
+import { ManualImportModal } from './components/share/ManualImportModal';
+import { extractPayloadFromInput, SharePayload } from './utils/shareCompression';
 import { FORMATIONS } from './data/formations';
-import { Player, PositionCategory, TacticalOverrideType } from './types/soccer';
-import { Plus, Play, Sparkles, Trophy, Users, ArrowLeftRight } from 'lucide-react';
+import { Player, Team, Game, PositionCategory, TacticalOverrideType } from './types/soccer';
+import { Plus, Play, Sparkles, Trophy, Users, ArrowLeftRight, CheckCircle2 } from 'lucide-react';
 
 export function App() {
   const store = useSoccerStore();
@@ -27,6 +31,78 @@ export function App() {
   const [singleSubTarget, setSingleSubTarget] = useState<Player | null>(null);
   const [showFullBenchSwap, setShowFullBenchSwap] = useState<boolean>(false);
   const [showNewGameModal, setShowNewGameModal] = useState<boolean>(false);
+
+  // Transfer & Share modals state
+  const [sharePayload, setSharePayload] = useState<SharePayload | null>(null);
+  const [incomingPayload, setIncomingPayload] = useState<SharePayload | null>(null);
+  const [showManualImport, setShowManualImport] = useState<boolean>(false);
+  const [transferToast, setTransferToast] = useState<string | null>(null);
+
+  // Detect incoming transfer URL from hash (#import=...) or query (?import=...)
+  useEffect(() => {
+    const checkForImport = () => {
+      const fullUrl = window.location.href;
+      const extracted = extractPayloadFromInput(fullUrl);
+      if (extracted) {
+        setIncomingPayload(extracted);
+        // Clean hash without refreshing page
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+      }
+    };
+
+    checkForImport();
+    window.addEventListener('hashchange', checkForImport);
+    return () => window.removeEventListener('hashchange', checkForImport);
+  }, []);
+
+  const handleConfirmTeam = (team: Team, mode: 'overwrite' | 'new_copy') => {
+    store.importTeam(team, mode);
+    setIncomingPayload(null);
+    setTransferToast(`Successfully imported "${team.name}"!`);
+    setTimeout(() => setTransferToast(null), 3500);
+  };
+
+  const handleConfirmBackup = (teams: Team[], savedGames?: Game[], merge?: boolean) => {
+    store.importBackupData(teams, savedGames || [], merge ?? true);
+    setIncomingPayload(null);
+    setTransferToast(`Successfully imported backup with ${teams.length} teams!`);
+    setTimeout(() => setTransferToast(null), 3500);
+  };
+
+  // Common Transfer Modals across both landing screen and active game
+  const renderSharedTransferModals = () => (
+    <>
+      <ShareTransferModal
+        isOpen={Boolean(sharePayload)}
+        onClose={() => setSharePayload(null)}
+        payload={sharePayload}
+      />
+
+      <ImportConfirmationModal
+        isOpen={Boolean(incomingPayload)}
+        payload={incomingPayload}
+        existingTeams={store.teams}
+        onConfirmTeam={handleConfirmTeam}
+        onConfirmBackup={handleConfirmBackup}
+        onClose={() => setIncomingPayload(null)}
+      />
+
+      <ManualImportModal
+        isOpen={showManualImport}
+        onClose={() => setShowManualImport(false)}
+        onPayloadExtracted={(payload) => setIncomingPayload(payload)}
+      />
+
+      {transferToast && (
+        <div className="fixed top-14 left-1/2 transform -translate-x-1/2 z-50 bg-emerald-600 text-white px-4 py-2 rounded-2xl shadow-2xl flex items-center gap-2 text-xs font-black animate-in fade-in slide-in-from-top-3 duration-200">
+          <CheckCircle2 className="w-4 h-4" />
+          <span>{transferToast}</span>
+        </div>
+      )}
+    </>
+  );
 
   // Hook up game clock timer
   useGameTimer({
@@ -95,9 +171,14 @@ export function App() {
             onCreateTeam={store.addTeam}
             onDeleteTeam={store.deleteTeam}
             onRestoreSampleData={store.restoreSampleData}
+            onShareTeam={(team) => setSharePayload({ type: 'team', version: 1, team })}
+            onShareBackup={() => setSharePayload({ type: 'backup', version: 1, data: { teams: store.teams, savedGames: store.savedGames } })}
+            onOpenManualImport={() => setShowManualImport(true)}
             activeGameTeamId={store.activeGame?.teamId}
           />
         </main>
+
+        {renderSharedTransferModals()}
       </div>
     );
   }
@@ -254,6 +335,7 @@ export function App() {
                 onAddPlayer={store.addPlayer}
                 onUpdatePlayer={store.updatePlayer}
                 onDeletePlayer={store.deletePlayer}
+                onShareTeam={() => setSharePayload({ type: 'team', version: 1, team: store.activeTeam! })}
               />
             )}
 
@@ -345,6 +427,8 @@ export function App() {
           }}
         />
       )}
+
+      {renderSharedTransferModals()}
     </div>
   );
 }

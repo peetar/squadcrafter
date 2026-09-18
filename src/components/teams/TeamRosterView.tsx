@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Team, Player } from '../../types/soccer';
 import { PlayerFormModal } from '../player/PlayerFormModal';
-import { Users2, Plus, Edit2, Trash2, Shield, PlusCircle, ChevronDown, Check } from 'lucide-react';
+import { Users2, Plus, Edit2, Trash2, Shield, PlusCircle, ChevronDown, Check, QrCode } from 'lucide-react';
 
 interface TeamRosterViewProps {
   teams: Team[];
@@ -11,6 +11,7 @@ interface TeamRosterViewProps {
   onAddPlayer: (teamId: string, player: Omit<Player, 'id' | 'teamId'>) => void;
   onUpdatePlayer: (player: Player) => void;
   onDeletePlayer: (teamId: string, playerId: string) => void;
+  onShareTeam?: () => void;
 }
 
 export const TeamRosterView: React.FC<TeamRosterViewProps> = ({
@@ -21,6 +22,7 @@ export const TeamRosterView: React.FC<TeamRosterViewProps> = ({
   onAddPlayer,
   onUpdatePlayer,
   onDeletePlayer,
+  onShareTeam,
 }) => {
   const [editingPlayer, setEditingPlayer] = useState<Player | null | 'new'>(null);
   const [showAddTeamModal, setShowAddTeamModal] = useState(false);
@@ -103,13 +105,26 @@ export const TeamRosterView: React.FC<TeamRosterViewProps> = ({
           </div>
         </div>
 
-        <button
-          onClick={() => setEditingPlayer('new')}
-          className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-md transition"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add Player</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {onShareTeam && (
+            <button
+              onClick={onShareTeam}
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 hover:text-white font-bold text-xs rounded-xl border border-slate-700 shadow-sm transition"
+              title="Transfer this team to phone (QR Code / Link)"
+            >
+              <QrCode className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">Transfer to Phone</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => setEditingPlayer('new')}
+            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-md transition"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Player</span>
+          </button>
+        </div>
       </div>
 
       {/* Players List */}

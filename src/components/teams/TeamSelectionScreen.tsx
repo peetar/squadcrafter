@@ -12,7 +12,9 @@ import {
   RotateCcw, 
   CheckCircle2, 
   ShieldCheck,
-  Award
+  Award,
+  QrCode,
+  Share2
 } from 'lucide-react';
 
 interface TeamSelectionScreenProps {
@@ -21,6 +23,9 @@ interface TeamSelectionScreenProps {
   onCreateTeam: (name: string, defaultPlayerCount: number, primaryColor?: string) => Team;
   onDeleteTeam: (teamId: string) => void;
   onRestoreSampleData: () => void;
+  onShareTeam?: (team: Team) => void;
+  onShareBackup?: () => void;
+  onOpenManualImport?: () => void;
   activeGameTeamId?: string | null;
 }
 
@@ -30,6 +35,9 @@ export const TeamSelectionScreen: React.FC<TeamSelectionScreenProps> = ({
   onCreateTeam,
   onDeleteTeam,
   onRestoreSampleData,
+  onShareTeam,
+  onShareBackup,
+  onOpenManualImport,
   activeGameTeamId,
 }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -187,8 +195,21 @@ export const TeamSelectionScreen: React.FC<TeamSelectionScreenProps> = ({
                   </div>
                 </div>
 
-                {/* Right: Enter Button & Delete */}
+                {/* Right: Enter Button, Share, & Delete */}
                 <div className="flex items-center gap-1.5">
+                  {onShareTeam && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onShareTeam(team);
+                      }}
+                      className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-xl transition"
+                      title="Transfer Team to Phone (QR / Link)"
+                    >
+                      <QrCode className="w-4 h-4" />
+                    </button>
+                  )}
+
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -223,25 +244,47 @@ export const TeamSelectionScreen: React.FC<TeamSelectionScreenProps> = ({
       <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 space-y-3 text-xs">
         <div className="flex items-center gap-2 font-bold text-slate-300">
           <Database className="w-4 h-4 text-emerald-400" />
-          <span>Local Storage & Backup Tools</span>
+          <span>Local Storage & Device Transfer</span>
         </div>
 
         <p className="text-slate-400 leading-relaxed text-[11px]">
-          All teams, player skill levels, formations, and match stats are stored persistently in your browser's local store. You can also export a backup file to transfer to another device.
+          All teams, player skill levels, formations, and match stats are stored persistently in your browser's local store. Transfer easily between desktop and phone using a QR code, link, or JSON backup file.
         </p>
 
         <div className="flex items-center gap-2 pt-1 flex-wrap">
+          {onShareBackup && (
+            <button
+              onClick={onShareBackup}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 font-bold rounded-xl border border-emerald-500/40 active:scale-95 transition"
+              title="Transfer all teams to another device via QR code"
+            >
+              <QrCode className="w-3.5 h-3.5" />
+              <span>Transfer to Phone (QR)</span>
+            </button>
+          )}
+
+          {onOpenManualImport && (
+            <button
+              onClick={onOpenManualImport}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl border border-slate-700 active:scale-95 transition"
+              title="Paste a share link or transfer code"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>Paste Share Code</span>
+            </button>
+          )}
+
           <button
             onClick={handleExportData}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl border border-slate-700 active:scale-95 transition"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Export Backup</span>
+            <span>Export File</span>
           </button>
 
           <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl border border-slate-700 cursor-pointer active:scale-95 transition">
             <Upload className="w-3.5 h-3.5" />
-            <span>Import Backup</span>
+            <span>Import File</span>
             <input type="file" accept=".json" onChange={handleImportData} className="hidden" />
           </label>
 
@@ -254,7 +297,7 @@ export const TeamSelectionScreen: React.FC<TeamSelectionScreenProps> = ({
             className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/50 hover:bg-slate-800 text-slate-400 hover:text-slate-300 font-medium rounded-xl border border-slate-800 active:scale-95 transition ml-auto"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>Reset Demo Data</span>
+            <span>Reset Demo</span>
           </button>
         </div>
       </div>

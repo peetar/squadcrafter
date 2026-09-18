@@ -116,6 +116,80 @@ export function useSoccerStore() {
     });
   }, []);
 
+  const importTeam = useCallback((incomingTeam: Team, mode: 'overwrite' | 'new_copy' = 'overwrite') => {
+    setState(prev => {
+      const existingIdx = prev.teams.findIndex(t => t.id === incomingTeam.id);
+      let targetTeam: Team;
+
+      if (existingIdx !== -1 && mode === 'overwrite') {
+        targetTeam = { ...incomingTeam };
+        const updatedTeams = [...prev.teams];
+        updatedTeams[existingIdx] = targetTeam;
+        return {
+          ...prev,
+          teams: updatedTeams,
+          activeTeamId: targetTeam.id,
+        };
+      } else {
+        // Create as new team with fresh ID to avoid collisions
+        const newTeamId = 'team-' + Date.now();
+        targetTeam = {
+          ...incomingTeam,
+          id: newTeamId,
+          name: mode === 'new_copy' ? `${incomingTeam.name} (Copy)` : incomingTeam.name,
+          players: incomingTeam.players.map(p => ({
+            ...p,
+            id: 'p-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+            teamId: newTeamId,
+          })),
+        };
+        return {
+          ...prev,
+          teams: [...prev.teams, targetTeam],
+          activeTeamId: targetTeam.id,
+        };
+      }
+    });
+  }, []);
+
+  const importBackupData = useCallback((incomingTeams: Team[], incomingSavedGames: Game[] = [], merge: boolean = true) => {
+    setState(prev => {
+      if (!merge) {
+        return {
+          teams: incomingTeams,
+          activeTeamId: incomingTeams[0]?.id || null,
+          activeGame: null,
+          savedGames: incomingSavedGames,
+        };
+      }
+
+      // Merge teams: update existing if matching ID or append if new
+      const mergedTeams = [...prev.teams];
+      for (const inc of incomingTeams) {
+        const idx = mergedTeams.findIndex(t => t.id === inc.id);
+        if (idx !== -1) {
+          mergedTeams[idx] = inc;
+        } else {
+          mergedTeams.push(inc);
+        }
+      }
+
+      // Merge saved games
+      const mergedGames = [...prev.savedGames];
+      for (const g of incomingSavedGames) {
+        if (!mergedGames.some(existing => existing.id === g.id)) {
+          mergedGames.push(g);
+        }
+      }
+
+      return {
+        ...prev,
+        teams: mergedTeams,
+        savedGames: mergedGames,
+      };
+    });
+  }, []);
+
   // ---------------- Player Management (Skill is only set/viewed here!) ----------------
   const addPlayer = useCallback((teamId: string, player: Omit<Player, 'id' | 'teamId'>) => {
     const newPlayer: Player = {
@@ -831,6 +905,8 @@ export function useSoccerStore() {
     addTeam,
     updateTeam,
     deleteTeam,
+    importTeam,
+    importBackupData,
     addPlayer,
     updatePlayer,
     deletePlayer,
