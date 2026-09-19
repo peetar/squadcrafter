@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Formation, Game, Player } from '../../types/soccer';
 import { PlayerNode } from './PlayerNode';
-import { Users, Shuffle, AlertCircle, ArrowLeftRight, CheckCircle2, ArrowDownUp, FastForward, Flag } from 'lucide-react';
+import { Users, Shuffle, AlertCircle, ArrowLeftRight, CheckCircle2, ArrowDownUp, FastForward, Flag, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface SoccerPitchProps {
   game: Game;
@@ -74,6 +74,99 @@ export const SoccerPitch: React.FC<SoccerPitchProps> = ({
     const sB = game.playerStates[b.id]?.currentStintSeconds || 0;
     return sB - sA;
   });
+
+  // Horizontal scroll controls for bench
+  const benchScrollRef = useRef<HTMLDivElement>(null);
+  const scrollIntervalRef = useRef<number | null>(null);
+  const scrollTimeoutRef = useRef<number | null>(null);
+
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+
+  const updateScrollState = useCallback(() => {
+    const el = benchScrollRef.current;
+    if (!el) return;
+    const hasOverflow = el.scrollWidth > el.clientWidth + 4;
+    setIsOverflowing(hasOverflow);
+    setCanScrollLeft(el.scrollLeft > 6);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 6);
+  }, []);
+
+  useEffect(() => {
+    const el = benchScrollRef.current;
+    if (!el) return;
+    updateScrollState();
+    el.addEventListener('scroll', updateScrollState, { passive: true });
+    window.addEventListener('resize', updateScrollState);
+    return () => {
+      el.removeEventListener('scroll', updateScrollState);
+      window.removeEventListener('resize', updateScrollState);
+    };
+  }, [updateScrollState, sortedBench.length]);
+
+  const stopHoldingScroll = useCallback(() => {
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+      scrollTimeoutRef.current = null;
+    }
+    if (scrollIntervalRef.current) {
+      clearInterval(scrollIntervalRef.current);
+      scrollIntervalRef.current = null;
+    }
+  }, []);
+
+  const scrollStep = (direction: 'left' | 'right', amount = 140) => {
+    if (benchScrollRef.current) {
+      benchScrollRef.current.scrollBy({
+        left: direction === 'left' ? -amount : amount,
+        behavior: 'smooth',
+      });
+    }
+  };
+
+  const startHoldingScroll = useCallback((direction: 'left' | 'right') => {
+    stopHoldingScroll();
+    // Immediate step on initial tap
+    scrollStep(direction, 140);
+
+    // If held for more than 220ms, begin smooth continuous auto-scroll
+    scrollTimeoutRef.current = window.setTimeout(() => {
+      scrollIntervalRef.current = window.setInterval(() => {
+        if (benchScrollRef.current) {
+          benchScrollRef.current.scrollLeft += direction === 'left' ? -12 : 12;
+        }
+      }, 16);
+    }, 220);
+  }, [stopHoldingScroll]);
+
+  // Ensure scroll stops if pointer is released anywhere
+  useEffect(() => {
+    const handleGlobalPointerUp = () => stopHoldingScroll();
+    window.addEventListener('pointerup', handleGlobalPointerUp);
+    window.addEventListener('pointercancel', handleGlobalPointerUp);
+    return () => {
+      window.removeEventListener('pointerup', handleGlobalPointerUp);
+      window.removeEventListener('pointercancel', handleGlobalPointerUp);
+      stopHoldingScroll();
+    };
+  }, [stopHoldingScroll]);
+
+  const handleArrowPointerDown = (e: React.PointerEvent, direction: 'left' | 'right') => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
+    startHoldingScroll(direction);
+  };
+
+  const handleArrowPointerUp = (e: React.PointerEvent) => {
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {}
+    stopHoldingScroll();
+  };
 
   // Check if any slot is unassigned
   const unassignedSlots = formation.slots.filter(slot => {
@@ -473,53 +566,100 @@ export const SoccerPitch: React.FC<SoccerPitchProps> = ({
             </span>
           </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-            {sortedBench.map(bp => {
-              const bState = game.playerStates[bp.id];
-              const sitMinutes = Math.floor((bState?.currentStintSeconds || 0) / 60);
-              const isQueued = game.queuedSubs.some(q => q.playerInId === bp.id);
-              const isHovered = hoveredTarget?.type === 'bench' && hoveredTarget.id === bp.id;
-              const isSource = dragSession?.sourcePlayer.id === bp.id;
+          <div className="relative flex items-center gap-1.5">
+            {/* Left Scroll Arrow Button */}
+            {isOverflowing && (
+              <button
+                type="button"
+                onPointerDown={(e) => handleArrowPointerDown(e, 'left')}
+                onPointerUp={handleArrowPointerUp}
+                onPointerLeave={stopHoldingScroll}
+                onPointerCancel={handleArrowPointerUp}
+                disabled={!canScrollLeft}
+                className={`h-11 w-8 flex items-center justify-center rounded-xl border select-none touch-none shrink-0 transition-all ${
+                  canScrollLeft
+                    ? 'bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border-slate-700 text-white shadow-md active:scale-95 cursor-pointer'
+                    : 'bg-slate-900/40 border-slate-800/60 text-slate-600 opacity-40 cursor-default'
+                }`}
+                title="Scroll bench left (tap or hold)"
+                aria-label="Scroll bench left"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            )}
 
-              return (
-                <div
-                  key={bp.id}
-                  data-drop-target="bench"
-                  data-player-id={bp.id}
-                  onPointerDown={(e) => handlePointerDown(e, bp, 'bench')}
-                  className={`flex-shrink-0 flex items-center gap-2 px-2.5 py-1.5 rounded-xl border cursor-grab active:cursor-grabbing transition-all select-none touch-none ${
-                    isHovered
-                      ? 'bg-emerald-950 border-emerald-400 text-emerald-200 ring-4 ring-emerald-400/80 scale-105 shadow-xl shadow-emerald-950/60'
-                      : isSource
-                      ? 'opacity-40 scale-95'
-                      : isQueued 
-                      ? 'bg-amber-950/40 border-amber-500/50 text-amber-200' 
-                      : sitMinutes >= 10
-                      ? 'bg-red-950/40 border-red-800/60 text-slate-200 animate-soft-pulse'
-                      : sitMinutes >= 6
-                      ? 'bg-amber-950/30 border-amber-700/50 text-slate-200'
-                      : 'bg-slate-900/90 border-slate-800 text-slate-300 hover:border-slate-700'
-                  }`}
-                >
-                  <div className={`w-7 h-7 rounded-full border flex items-center justify-center font-bold text-xs ${
-                    bp.canPlayGK 
-                      ? 'bg-amber-400 text-slate-950 border-amber-300' 
-                      : 'bg-slate-800 border-slate-700 text-white'
-                  }`}>
-                    {bp.number}
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold truncate max-w-[80px] leading-tight">
-                      {bp.name.split(' ')[0]}
+            <div 
+              ref={benchScrollRef}
+              className="flex-1 min-w-0 flex gap-2 overflow-x-auto pb-1.5 bench-scrollbar"
+            >
+              {sortedBench.map(bp => {
+                const bState = game.playerStates[bp.id];
+                const sitMinutes = Math.floor((bState?.currentStintSeconds || 0) / 60);
+                const isQueued = game.queuedSubs.some(q => q.playerInId === bp.id);
+                const isHovered = hoveredTarget?.type === 'bench' && hoveredTarget.id === bp.id;
+                const isSource = dragSession?.sourcePlayer.id === bp.id;
+
+                return (
+                  <div
+                    key={bp.id}
+                    data-drop-target="bench"
+                    data-player-id={bp.id}
+                    onPointerDown={(e) => handlePointerDown(e, bp, 'bench')}
+                    className={`flex-shrink-0 flex items-center gap-2 px-2.5 py-1.5 rounded-xl border cursor-grab active:cursor-grabbing transition-all select-none touch-none ${
+                      isHovered
+                        ? 'bg-emerald-950 border-emerald-400 text-emerald-200 ring-4 ring-emerald-400/80 scale-105 shadow-xl shadow-emerald-950/60'
+                        : isSource
+                        ? 'opacity-40 scale-95'
+                        : isQueued 
+                        ? 'bg-amber-950/40 border-amber-500/50 text-amber-200' 
+                        : sitMinutes >= 10
+                        ? 'bg-red-950/40 border-red-800/60 text-slate-200 animate-soft-pulse'
+                        : sitMinutes >= 6
+                        ? 'bg-amber-950/30 border-amber-700/50 text-slate-200'
+                        : 'bg-slate-900/90 border-slate-800 text-slate-300 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className={`w-7 h-7 rounded-full border flex items-center justify-center font-bold text-xs ${
+                      bp.canPlayGK 
+                        ? 'bg-amber-400 text-slate-950 border-amber-300' 
+                        : 'bg-slate-800 border-slate-700 text-white'
+                    }`}>
+                      {bp.number}
                     </div>
-                    <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1">
-                      <span>{sitMinutes}m sat</span>
-                      {bp.canPlayGK && <span className="text-[9px] text-amber-400 font-bold">GK</span>}
+                    <div>
+                      <div className="text-xs font-bold truncate max-w-[80px] leading-tight">
+                        {bp.name.split(' ')[0]}
+                      </div>
+                      <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1">
+                        <span>{sitMinutes}m sat</span>
+                        {bp.canPlayGK && <span className="text-[9px] text-amber-400 font-bold">GK</span>}
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+
+            {/* Right Scroll Arrow Button */}
+            {isOverflowing && (
+              <button
+                type="button"
+                onPointerDown={(e) => handleArrowPointerDown(e, 'right')}
+                onPointerUp={handleArrowPointerUp}
+                onPointerLeave={stopHoldingScroll}
+                onPointerCancel={handleArrowPointerUp}
+                disabled={!canScrollRight}
+                className={`h-11 w-8 flex items-center justify-center rounded-xl border select-none touch-none shrink-0 transition-all ${
+                  canScrollRight
+                    ? 'bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border-slate-700 text-white shadow-md active:scale-95 cursor-pointer'
+                    : 'bg-slate-900/40 border-slate-800/60 text-slate-600 opacity-40 cursor-default'
+                }`}
+                title="Scroll bench right (tap or hold)"
+                aria-label="Scroll bench right"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       )}

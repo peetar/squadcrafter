@@ -45,6 +45,23 @@
   background: rgba(100, 116, 139, 0.7);
 }
 
+/* Bench horizontal scrollbar styling */
+.bench-scrollbar::-webkit-scrollbar {
+  height: 8px;
+}
+.bench-scrollbar::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.85);
+  border-radius: 9999px;
+}
+.bench-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.6);
+  border-radius: 9999px;
+  border: 1px solid rgba(30, 41, 59, 0.8);
+}
+.bench-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(52, 211, 153, 0.8);
+}
+
 /* Soccer pitch striped lawn pattern */
 .pitch-stripes {
   background: repeating-linear-gradient(
