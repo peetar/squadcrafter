@@ -18,6 +18,7 @@ import { ShareTransferModal } from './components/share/ShareTransferModal';
 import { ImportConfirmationModal } from './components/share/ImportConfirmationModal';
 import { ManualImportModal } from './components/share/ManualImportModal';
 import { MatchRecapModal } from './components/game/MatchRecapModal';
+import { GoalScorerModal } from './components/game/GoalScorerModal';
 import { PwaInstallModal } from './components/pwa/PwaInstallModal';
 import { extractPayloadFromInput, SharePayload } from './utils/shareCompression';
 import { FORMATIONS } from './data/formations';
@@ -33,6 +34,7 @@ export function App() {
   const [singleSubTarget, setSingleSubTarget] = useState<Player | null>(null);
   const [showFullBenchSwap, setShowFullBenchSwap] = useState<boolean>(false);
   const [showNewGameModal, setShowNewGameModal] = useState<boolean>(false);
+  const [showGoalModal, setShowGoalModal] = useState<boolean>(false);
   const [selectedRecapGame, setSelectedRecapGame] = useState<Game | null>(null);
   const [isNewlyFinished, setIsNewlyFinished] = useState<boolean>(false);
 
@@ -269,6 +271,7 @@ export function App() {
         onRegisterGoal={store.registerGoal}
         onRegisterOpponentGoal={store.registerOpponentGoal}
         onAdjustScore={store.adjustScore}
+        onOpenGoalScorerPicker={() => setShowGoalModal(true)}
         onToggleCleanGoalie={store.toggleCleanGoalieSwaps}
         onNewGameClick={() => setShowNewGameModal(true)}
         onSwitchTeam={() => store.setActiveTeamId(null)}
@@ -430,6 +433,7 @@ export function App() {
                 onDeleteSavedGame={store.deleteSavedGame}
                 onRegisterOpponentGoal={store.registerOpponentGoal}
                 onAdjustScore={store.adjustScore}
+                onAdjustClock={store.adjustGameClock}
               />
             )}
           </>
@@ -462,11 +466,22 @@ export function App() {
           player={actionSheetPlayer}
           state={store.activeGame.playerStates[actionSheetPlayer.id]}
           onClose={() => setActionSheetPlayer(null)}
-          onRegisterGoal={(pId) => store.registerGoal(pId, true)}
           onToggleTired={store.togglePlayerTired}
           onToggleAvailability={store.togglePlayerAvailability}
           onSuggestSub={handleSuggestSub}
           onSetOverride={handleSetOverride}
+        />
+      )}
+
+      {/* Goal Scorer Selection Modal */}
+      {showGoalModal && store.activeGame && store.activeTeam && (
+        <GoalScorerModal
+          isOpen={showGoalModal}
+          onClose={() => setShowGoalModal(false)}
+          team={store.activeTeam}
+          players={currentRoster}
+          game={store.activeGame}
+          onSelectScorer={(playerId) => store.registerGoal(playerId, true)}
         />
       )}
 

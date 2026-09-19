@@ -15,6 +15,7 @@ interface GameStatsSummaryProps {
   onDeleteSavedGame: (gameId: string) => void;
   onRegisterOpponentGoal?: () => void;
   onAdjustScore?: (side: 'us' | 'them', delta: number) => void;
+  onAdjustClock?: (deltaSeconds: number) => void;
 }
 
 export const GameStatsSummary: React.FC<GameStatsSummaryProps> = ({
@@ -28,6 +29,7 @@ export const GameStatsSummary: React.FC<GameStatsSummaryProps> = ({
   onDeleteSavedGame,
   onRegisterOpponentGoal,
   onAdjustScore,
+  onAdjustClock,
 }) => {
   const teamSavedGames = savedGames.filter(g => g.teamId === team.id || !g.teamId);
   const [activeSubTab, setActiveSubTab] = useState<'live' | 'history'>(game ? 'live' : 'history');
@@ -80,9 +82,29 @@ export const GameStatsSummary: React.FC<GameStatsSummaryProps> = ({
               <BarChart3 className="w-5 h-5 text-emerald-400" />
               <span>Stats & Match History</span>
             </h2>
-            <p className="text-xs text-slate-400">
-              {showLive ? `Live match time: ${formatTime(game.totalElapsedSeconds)}` : `${teamSavedGames.length} past matches on record`}
-            </p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <p className="text-xs text-slate-400">
+                {showLive ? `Match: ${formatTime(game.totalElapsedSeconds)} (P${game.currentPeriod}: ${formatTime(game.elapsedPeriodSeconds)})` : `${teamSavedGames.length} past matches on record`}
+              </p>
+              {showLive && onAdjustClock && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => onAdjustClock(-60)}
+                    className="px-1.5 py-0.2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded text-[10px] font-bold active:scale-90 transition"
+                    title="Subtract 1 minute from match clock"
+                  >
+                    -1m
+                  </button>
+                  <button
+                    onClick={() => onAdjustClock(60)}
+                    className="px-1.5 py-0.2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded text-[10px] font-bold active:scale-90 transition"
+                    title="Add 1 minute to match clock"
+                  >
+                    +1m
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {showLive && onEndGame && (

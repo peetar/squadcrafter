@@ -24,6 +24,111 @@ export interface AppState {
   savedGames: Game[];
 }
 
+/**
+ * Lineup Integrity Sanitizer
+ * Ensures:
+ * 1. Every 'on_field' player is assigned to a valid slot in the game's active formation.
+ * 2. No two players share the same slot (if a collision occurs, the duplicate is placed in a vacant slot or booted to bench).
+ * 3. All 'on_bench' or 'absent' players have assignedSlotId & assignedRole cleared.
+ * 4. Queued subs are strictly between a valid bench player and a valid field player.
+ */
+export function reconcileLineupIntegrity(game: Game): Game {
+  const formation = FORMATIONS.find(f => f.id === game.formationId);
+  if (!formation) return game;
+
+  const validSlotIds = new Set(formation.slots.map(s => s.id));
+  const updatedPlayerStates: Record<string, PlayerMatchState> = { ...game.playerStates };
+  let hasChanges = false;
+
+  // Track which slot has been claimed by an active on_field player (slotId -> playerId)
+  const occupiedSlots = new Map<string, string>();
+  const problematicFieldPlayers: string[] = [];
+
+  // Pass 1: Validate each player's status and assigned slot
+  for (const [playerId, state] of Object.entries(updatedPlayerStates)) {
+    if (state.status === 'on_field') {
+      const slotId = state.assignedSlotId;
+      if (slotId && validSlotIds.has(slotId) && !occupiedSlots.has(slotId)) {
+        occupiedSlots.set(slotId, playerId);
+        const slotObj = formation.slots.find(s => s.id === slotId);
+        if (slotObj && state.assignedRole !== slotObj.role) {
+          updatedPlayerStates[playerId] = {
+            ...state,
+            assignedRole: slotObj.role,
+          };
+          hasChanges = true;
+        }
+      } else {
+        // Missing, invalid, or duplicate slot
+        problematicFieldPlayers.push(playerId);
+      }
+    } else {
+      // Bench or absent players MUST NOT retain pitch slot references
+      if (state.assignedSlotId !== undefined || state.assignedRole !== undefined) {
+        updatedPlayerStates[playerId] = {
+          ...state,
+          assignedSlotId: undefined,
+          assignedRole: undefined,
+        };
+        hasChanges = true;
+      }
+    }
+  }
+
+  // Pass 2: Reconcile problematic field players
+  if (problematicFieldPlayers.length > 0) {
+    hasChanges = true;
+    const vacantSlots = formation.slots.filter(s => !occupiedSlots.has(s.id));
+
+    for (const playerId of problematicFieldPlayers) {
+      const state = updatedPlayerStates[playerId];
+      if (vacantSlots.length > 0) {
+        // Place in an available vacant slot on the pitch
+        const slotToTake = vacantSlots.shift()!;
+        occupiedSlots.set(slotToTake.id, playerId);
+        updatedPlayerStates[playerId] = {
+          ...state,
+          status: 'on_field',
+          assignedSlotId: slotToTake.id,
+          assignedRole: slotToTake.role,
+        };
+      } else {
+        // No room in starting lineup: safely boot to bench so coach can see and sub them
+        updatedPlayerStates[playerId] = {
+          ...state,
+          status: 'on_bench',
+          assignedSlotId: undefined,
+          assignedRole: undefined,
+        };
+      }
+    }
+  }
+
+  // Pass 3: Validate queued substitutions
+  const validQueuedSubs = game.queuedSubs.filter(q => {
+    const inState = updatedPlayerStates[q.playerInId];
+    const outState = updatedPlayerStates[q.playerOutId];
+    return (
+      inState &&
+      inState.status === 'on_bench' &&
+      outState &&
+      outState.status === 'on_field'
+    );
+  });
+
+  if (validQueuedSubs.length !== game.queuedSubs.length) {
+    hasChanges = true;
+  }
+
+  if (!hasChanges) return game;
+
+  return {
+    ...game,
+    playerStates: updatedPlayerStates,
+    queuedSubs: validQueuedSubs,
+  };
+}
+
 function loadInitialState(): AppState {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -33,7 +138,7 @@ function loadInitialState(): AppState {
         return {
           teams: parsed.teams,
           activeTeamId: null, // Always land on team selection screen as requested!
-          activeGame: parsed.activeGame || null,
+          activeGame: parsed.activeGame ? reconcileLineupIntegrity(parsed.activeGame) : null,
           savedGames: parsed.savedGames || [],
         };
       }
@@ -303,7 +408,7 @@ export function useSoccerStore() {
 
     setState(prev => ({
       ...prev,
-      activeGame: newGame,
+      activeGame: reconcileLineupIntegrity(newGame),
     }));
 
     return newGame;
@@ -338,12 +443,12 @@ export function useSoccerStore() {
 
       return {
         ...prev,
-        activeGame: {
+        activeGame: reconcileLineupIntegrity({
           ...game,
           formationId: newFormationId,
           playerStates: updatedStates,
           queuedSubs: [], // Clear any invalid queued subs on formation change
-        },
+        }),
       };
     });
   }, []);
@@ -361,11 +466,11 @@ export function useSoccerStore() {
 
       return {
         ...prev,
-        activeGame: {
+        activeGame: reconcileLineupIntegrity({
           ...game,
           playerStates: updatedStates,
           queuedSubs: [],
-        },
+        }),
       };
     });
   }, []);
@@ -393,6 +498,44 @@ export function useSoccerStore() {
             ...pState,
             totalBenchSeconds: pState.totalBenchSeconds + deltaSeconds,
             currentStintSeconds: pState.currentStintSeconds + deltaSeconds,
+          };
+        }
+      });
+
+      return {
+        ...prev,
+        activeGame: {
+          ...g,
+          elapsedPeriodSeconds: newElapsedPeriod,
+          totalElapsedSeconds: newTotalElapsed,
+          playerStates: updatedPlayerStates,
+        },
+      };
+    });
+  }, []);
+
+  // Manual Clock Adjustment (e.g. sync with referee's watch +/- 60s)
+  const adjustGameClock = useCallback((deltaSeconds: number) => {
+    setState(prev => {
+      if (!prev.activeGame) return prev;
+      const g = prev.activeGame;
+      const newElapsedPeriod = Math.max(0, g.elapsedPeriodSeconds + deltaSeconds);
+      const newTotalElapsed = Math.max(0, g.totalElapsedSeconds + deltaSeconds);
+
+      const updatedPlayerStates = { ...g.playerStates };
+      Object.keys(updatedPlayerStates).forEach(pId => {
+        const pState = updatedPlayerStates[pId];
+        if (pState.status === 'on_field') {
+          updatedPlayerStates[pId] = {
+            ...pState,
+            totalFieldSeconds: Math.max(0, pState.totalFieldSeconds + deltaSeconds),
+            currentStintSeconds: Math.max(0, pState.currentStintSeconds + deltaSeconds),
+          };
+        } else if (pState.status === 'on_bench') {
+          updatedPlayerStates[pId] = {
+            ...pState,
+            totalBenchSeconds: Math.max(0, pState.totalBenchSeconds + deltaSeconds),
+            currentStintSeconds: Math.max(0, pState.currentStintSeconds + deltaSeconds),
           };
         }
       });
@@ -510,7 +653,7 @@ export function useSoccerStore() {
 
       return {
         ...prev,
-        activeGame: {
+        activeGame: reconcileLineupIntegrity({
           ...prev.activeGame,
           playerStates: {
             ...prev.activeGame.playerStates,
@@ -525,48 +668,49 @@ export function useSoccerStore() {
           },
           queuedSubs: updatedQueuedSubs,
           events: [...prev.activeGame.events, event],
-        },
+        }),
       };
     });
   }, []);
 
   // Register Goal
-  const registerGoal = useCallback((playerId: string, isUs: boolean = true) => {
+  const registerGoal = useCallback((playerId?: string, isUs: boolean = true) => {
     setState(prev => {
       if (!prev.activeGame) return prev;
-      const current = prev.activeGame.playerStates[playerId];
-      const newGoals = (current?.goals || 0) + (isUs ? 1 : 0);
-
-      const team = prev.teams.find(t => t.id === prev.activeGame?.teamId);
-      const player = team?.players.find(p => p.id === playerId);
+      const g = prev.activeGame;
+      const team = prev.teams.find(t => t.id === g.teamId);
+      const player = playerId ? team?.players.find(p => p.id === playerId) : null;
+      const current = playerId ? g.playerStates[playerId] : null;
 
       const event: MatchEvent = {
         id: 'evt-goal-' + Date.now(),
-        gameId: prev.activeGame.id,
-        matchSecond: Math.floor(prev.activeGame.totalElapsedSeconds),
-        period: prev.activeGame.currentPeriod,
+        gameId: g.id,
+        matchSecond: Math.floor(g.totalElapsedSeconds),
+        period: g.currentPeriod,
         type: 'goal',
-        playerId,
+        playerId: isUs ? playerId : undefined,
         description: isUs 
-          ? `GOAL! Scored by ${player?.name || 'Player #' + player?.number}!`
-          : `Opponent scored a goal.`,
+          ? (player ? `GOAL! Scored by ${player.name} (#${player.number})!` : `GOAL! Scored for ${team?.name || 'our team'}!`)
+          : `Opponent scored a goal (${g.opponentName}).`,
         timestamp: Date.now(),
       };
+
+      const updatedStates = { ...g.playerStates };
+      if (isUs && playerId && current) {
+        updatedStates[playerId] = {
+          ...current,
+          goals: (current.goals || 0) + 1,
+        };
+      }
 
       return {
         ...prev,
         activeGame: {
-          ...prev.activeGame,
-          scoreUs: isUs ? prev.activeGame.scoreUs + 1 : prev.activeGame.scoreUs,
-          scoreThem: !isUs ? prev.activeGame.scoreThem + 1 : prev.activeGame.scoreThem,
-          playerStates: current ? {
-            ...prev.activeGame.playerStates,
-            [playerId]: {
-              ...current,
-              goals: newGoals,
-            },
-          } : prev.activeGame.playerStates,
-          events: [...prev.activeGame.events, event],
+          ...g,
+          scoreUs: isUs ? g.scoreUs + 1 : g.scoreUs,
+          scoreThem: !isUs ? g.scoreThem + 1 : g.scoreThem,
+          playerStates: updatedStates,
+          events: [...g.events, event],
         },
       };
     });
@@ -598,35 +742,70 @@ export function useSoccerStore() {
     });
   }, []);
 
-  // Adjust Score (+1 or -1 for either team)
+  // Adjust Score (+1 or -1 for either team, automatically deducting player stats on decrement)
   const adjustScore = useCallback((side: 'us' | 'them', delta: number) => {
     setState(prev => {
       if (!prev.activeGame) return prev;
-      const currentScore = side === 'us' ? prev.activeGame.scoreUs : prev.activeGame.scoreThem;
+      const g = prev.activeGame;
+      const currentScore = side === 'us' ? g.scoreUs : g.scoreThem;
       const newScore = Math.max(0, currentScore + delta);
       if (newScore === currentScore) return prev;
 
-      const eventDescription = delta > 0
-        ? (side === 'us' ? 'Goal recorded for team.' : `Opponent scored a goal (${prev.activeGame.opponentName}).`)
-        : (side === 'us' ? 'Team goal corrected (-1).' : `Opponent goal corrected (-1).`);
+      const updatedStates = { ...g.playerStates };
+      let updatedEvents = [...g.events];
 
-      const event: MatchEvent = {
-        id: 'evt-score-adj-' + Date.now(),
-        gameId: prev.activeGame.id,
-        matchSecond: Math.floor(prev.activeGame.totalElapsedSeconds),
-        period: prev.activeGame.currentPeriod,
-        type: 'goal',
-        description: eventDescription,
-        timestamp: Date.now(),
-      };
+      if (side === 'us') {
+        if (delta < 0) {
+          // Find the most recent goal event for our team to deduct that player's goals count
+          let scorerIdToDeduct: string | null = null;
+          let eventIndexToRemove = -1;
+
+          for (let i = updatedEvents.length - 1; i >= 0; i--) {
+            const ev = updatedEvents[i];
+            if (ev.type === 'goal' && (ev.playerId || ev.description.includes('GOAL!'))) {
+              scorerIdToDeduct = ev.playerId || null;
+              eventIndexToRemove = i;
+              break;
+            }
+          }
+
+          if (scorerIdToDeduct && updatedStates[scorerIdToDeduct]) {
+            const pState = updatedStates[scorerIdToDeduct];
+            updatedStates[scorerIdToDeduct] = {
+              ...pState,
+              goals: Math.max(0, (pState.goals || 0) - 1),
+            };
+          }
+
+          if (eventIndexToRemove >= 0) {
+            updatedEvents.splice(eventIndexToRemove, 1);
+          }
+        }
+      } else {
+        // Opponent side
+        if (delta < 0) {
+          let eventIndexToRemove = -1;
+          for (let i = updatedEvents.length - 1; i >= 0; i--) {
+            const ev = updatedEvents[i];
+            if (ev.type === 'goal' && (!ev.playerId || ev.description.includes('Opponent'))) {
+              eventIndexToRemove = i;
+              break;
+            }
+          }
+          if (eventIndexToRemove >= 0) {
+            updatedEvents.splice(eventIndexToRemove, 1);
+          }
+        }
+      }
 
       return {
         ...prev,
         activeGame: {
-          ...prev.activeGame,
-          scoreUs: side === 'us' ? newScore : prev.activeGame.scoreUs,
-          scoreThem: side === 'them' ? newScore : prev.activeGame.scoreThem,
-          events: [...prev.activeGame.events, event],
+          ...g,
+          scoreUs: side === 'us' ? newScore : g.scoreUs,
+          scoreThem: side === 'them' ? newScore : g.scoreThem,
+          playerStates: updatedStates,
+          events: updatedEvents,
         },
       };
     });
@@ -728,7 +907,11 @@ export function useSoccerStore() {
       g.queuedSubs.forEach(q => {
         const outPlayer = team?.players.find(p => p.id === q.playerOutId);
         const inPlayer = team?.players.find(p => p.id === q.playerInId);
-        const slot = formation?.slots.find(s => s.id === q.targetSlotId);
+
+        // Dynamically resolve target slot from playerOut's current assignedSlotId if available
+        const currentOutSlotId = updatedStates[q.playerOutId]?.assignedSlotId;
+        const targetSlotId = currentOutSlotId || q.targetSlotId;
+        const slot = formation?.slots.find(s => s.id === targetSlotId);
 
         // Sub OUT: moves to bench, resets stint, clears tired
         if (updatedStates[q.playerOutId]) {
@@ -747,7 +930,7 @@ export function useSoccerStore() {
           updatedStates[q.playerInId] = {
             ...updatedStates[q.playerInId],
             status: 'on_field',
-            assignedSlotId: q.targetSlotId,
+            assignedSlotId: targetSlotId,
             assignedRole: slot?.role || 'SUB',
             currentStintSeconds: 0,
             isTired: false,
@@ -768,14 +951,16 @@ export function useSoccerStore() {
         });
       });
 
+      const updatedGame: Game = {
+        ...g,
+        playerStates: updatedStates,
+        queuedSubs: [],
+        events: newEvents,
+      };
+
       return {
         ...prev,
-        activeGame: {
-          ...g,
-          playerStates: updatedStates,
-          queuedSubs: [],
-          events: newEvents,
-        },
+        activeGame: reconcileLineupIntegrity(updatedGame),
       };
     });
   }, []);
@@ -831,13 +1016,15 @@ export function useSoccerStore() {
         timestamp: Date.now(),
       };
 
+      const updatedGame: Game = {
+        ...g,
+        playerStates: updatedStates,
+        events: [...g.events, event],
+      };
+
       return {
         ...prev,
-        activeGame: {
-          ...g,
-          playerStates: updatedStates,
-          events: [...g.events, event],
-        },
+        activeGame: reconcileLineupIntegrity(updatedGame),
       };
     });
   }, []);
@@ -865,25 +1052,39 @@ export function useSoccerStore() {
         timestamp: Date.now(),
       };
 
+      // Sync any queued substitutions targeting either swapped player to their new slot
+      const updatedQueuedSubs = g.queuedSubs.map(q => {
+        if (q.playerOutId === player1Id && p2State.assignedSlotId) {
+          return { ...q, targetSlotId: p2State.assignedSlotId };
+        }
+        if (q.playerOutId === player2Id && p1State.assignedSlotId) {
+          return { ...q, targetSlotId: p1State.assignedSlotId };
+        }
+        return q;
+      });
+
+      const updatedGame: Game = {
+        ...g,
+        playerStates: {
+          ...g.playerStates,
+          [player1Id]: {
+            ...p1State,
+            assignedSlotId: p2State.assignedSlotId,
+            assignedRole: p2State.assignedRole,
+          },
+          [player2Id]: {
+            ...p2State,
+            assignedSlotId: p1State.assignedSlotId,
+            assignedRole: p1State.assignedRole,
+          },
+        },
+        queuedSubs: updatedQueuedSubs,
+        events: [...g.events, event],
+      };
+
       return {
         ...prev,
-        activeGame: {
-          ...g,
-          playerStates: {
-            ...g.playerStates,
-            [player1Id]: {
-              ...p1State,
-              assignedSlotId: p2State.assignedSlotId,
-              assignedRole: p2State.assignedRole,
-            },
-            [player2Id]: {
-              ...p2State,
-              assignedSlotId: p1State.assignedSlotId,
-              assignedRole: p1State.assignedRole,
-            },
-          },
-          events: [...g.events, event],
-        },
+        activeGame: reconcileLineupIntegrity(updatedGame),
       };
     });
   }, []);
@@ -909,22 +1110,24 @@ export function useSoccerStore() {
         timestamp: Date.now(),
       };
 
+      const updatedGame: Game = {
+        ...g,
+        playerStates: {
+          ...g.playerStates,
+          [playerId]: {
+            ...current,
+            status: 'on_field',
+            assignedSlotId: slotId,
+            assignedRole: role,
+            currentStintSeconds: 0,
+          },
+        },
+        events: [...g.events, event],
+      };
+
       return {
         ...prev,
-        activeGame: {
-          ...g,
-          playerStates: {
-            ...g.playerStates,
-            [playerId]: {
-              ...current,
-              status: 'on_field',
-              assignedSlotId: slotId,
-              assignedRole: role,
-              currentStintSeconds: 0,
-            },
-          },
-          events: [...g.events, event],
-        },
+        activeGame: reconcileLineupIntegrity(updatedGame),
       };
     });
   }, []);
@@ -947,15 +1150,17 @@ export function useSoccerStore() {
         timestamp: Date.now(),
       };
 
+      const updatedGame: Game = {
+        ...g,
+        currentPeriod: isFinished ? g.currentPeriod : nextPeriod,
+        elapsedPeriodSeconds: 0,
+        status: isFinished ? 'finished' : 'period_break',
+        events: [...g.events, event],
+      };
+
       return {
         ...prev,
-        activeGame: {
-          ...g,
-          currentPeriod: isFinished ? g.currentPeriod : nextPeriod,
-          elapsedPeriodSeconds: 0,
-          status: isFinished ? 'finished' : 'period_break',
-          events: [...g.events, event],
-        },
+        activeGame: reconcileLineupIntegrity(updatedGame),
       };
     });
   }, []);
@@ -1021,6 +1226,7 @@ export function useSoccerStore() {
     changeFormation,
     autoFillStartersAction,
     tickTimer,
+    adjustGameClock,
     setTacticalOverride,
     togglePlayerTired,
     togglePlayerAvailability,

@@ -17,6 +17,7 @@ interface HeaderProps {
   onAdvancePeriod?: () => void;
   onEndGame?: () => void;
   onAdjustScore?: (side: 'us' | 'them', delta: number) => void;
+  onOpenGoalScorerPicker?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -30,6 +31,7 @@ export const Header: React.FC<HeaderProps> = ({
   onAdvancePeriod,
   onEndGame,
   onAdjustScore,
+  onOpenGoalScorerPicker,
 }) => {
   const { isFullscreen, toggleFullscreen } = useFullscreen();
 
@@ -107,22 +109,46 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             {/* Scoreboard */}
-            <div className="flex items-center gap-1.5 px-1 font-mono text-xs sm:text-sm font-extrabold tracking-tight">
-              {/* Us */}
-              <div className="flex items-center gap-1 bg-emerald-950/60 border border-emerald-800/60 px-1.5 py-0.5 rounded-lg text-emerald-400">
-                <span className="text-[10px] font-sans font-bold text-emerald-500 uppercase tracking-tighter hidden xs:inline">Us</span>
-                <span className="text-sm sm:text-base font-black">{game.scoreUs}</span>
+            <div className="flex items-center gap-1 sm:gap-1.5 px-0.5 font-mono text-xs sm:text-sm font-extrabold tracking-tight">
+              {/* Us with - and + */}
+              <div className="flex items-center gap-1 bg-emerald-950/60 border border-emerald-800/60 px-1 sm:px-1.5 py-0.5 rounded-lg text-emerald-400">
+                <span className="text-[10px] font-sans font-bold text-emerald-500 uppercase tracking-tighter hidden md:inline">Us</span>
+                <button
+                  onClick={() => onAdjustScore?.('us', -1)}
+                  disabled={game.scoreUs <= 0}
+                  title="Remove last friendly goal"
+                  className="w-5 h-5 rounded bg-emerald-900/60 hover:bg-emerald-800 text-emerald-300 border border-emerald-700/60 flex items-center justify-center text-xs font-black disabled:opacity-25 disabled:pointer-events-none active:scale-90 transition"
+                >
+                  -
+                </button>
+                <span className="text-sm sm:text-base font-black px-0.5 min-w-[14px] text-center">{game.scoreUs}</span>
+                <button
+                  onClick={onOpenGoalScorerPicker}
+                  title={`Record goal for ${team.name}`}
+                  className="w-5 h-5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-black flex items-center justify-center text-xs active:scale-90 transition"
+                >
+                  +
+                </button>
               </div>
 
               <span className="text-slate-600 font-bold">-</span>
 
-              {/* Opponent with explicit + Goal button */}
-              <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded-lg">
-                <span className="text-sm sm:text-base font-black text-slate-200">{game.scoreThem}</span>
+              {/* Opponent with - and + */}
+              <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 px-1 sm:px-1.5 py-0.5 rounded-lg">
+                <span className="text-[10px] font-sans font-bold text-slate-500 uppercase tracking-tighter hidden md:inline">Them</span>
+                <button
+                  onClick={() => onAdjustScore?.('them', -1)}
+                  disabled={game.scoreThem <= 0}
+                  title={`Remove goal from opponent (${game.opponentName})`}
+                  className="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center justify-center text-xs font-black disabled:opacity-25 disabled:pointer-events-none active:scale-90 transition"
+                >
+                  -
+                </button>
+                <span className="text-sm sm:text-base font-black text-slate-200 px-0.5 min-w-[14px] text-center">{game.scoreThem}</span>
                 <button 
                   onClick={onRegisterOpponentGoal}
                   title={`Add opponent goal (${game.opponentName})`}
-                  className="w-4 h-4 rounded bg-red-950/80 hover:bg-red-800 text-red-300 border border-red-700/60 flex items-center justify-center text-[10px] font-black active:scale-90 transition ml-0.5"
+                  className="w-5 h-5 rounded bg-red-950/80 hover:bg-red-800 text-red-300 border border-red-700/60 flex items-center justify-center text-xs font-black active:scale-90 transition"
                 >
                   +
                 </button>

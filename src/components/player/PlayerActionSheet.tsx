@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { Player, PlayerMatchState, PositionCategory, TacticalOverrideType } from '../../types/soccer';
-import { celebrateGoal, formatTime } from '../../utils/celebration';
+import { formatTime } from '../../utils/celebration';
 import { X, Flame, RefreshCw, Star, Lock, Award, ShieldAlert, UserX, UserCheck } from 'lucide-react';
 
 interface PlayerActionSheetProps {
   player: Player;
   state: PlayerMatchState;
   onClose: () => void;
-  onRegisterGoal: (playerId: string) => void;
   onToggleTired: (playerId: string) => void;
   onToggleAvailability?: (playerId: string) => void;
   onSuggestSub: (player: Player) => void;
@@ -18,7 +17,6 @@ export const PlayerActionSheet: React.FC<PlayerActionSheetProps> = ({
   player,
   state,
   onClose,
-  onRegisterGoal,
   onToggleTired,
   onToggleAvailability,
   onSuggestSub,
@@ -29,11 +27,6 @@ export const PlayerActionSheet: React.FC<PlayerActionSheetProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<PositionCategory>(
     state.tacticalOverride?.targetCategory || player.preferredPositions[0] || 'MID'
   );
-
-  const handleGoal = () => {
-    celebrateGoal();
-    onRegisterGoal(player.id);
-  };
 
   const handleOverrideChange = (type: TacticalOverrideType) => {
     if (type === 'NONE') {
@@ -99,20 +92,11 @@ export const PlayerActionSheet: React.FC<PlayerActionSheetProps> = ({
         <div className="p-4 space-y-3">
           {/* Primary Quick Actions */}
           {!isAbsent && (
-            <div className="grid grid-cols-2 gap-2.5">
-              {/* Goal Scored */}
-              <button
-                onClick={handleGoal}
-                className="flex items-center justify-center gap-2 py-3 px-3 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-bold text-sm rounded-2xl shadow-md active:scale-95 transition"
-              >
-                <span className="text-lg">⚽</span>
-                <span>Goal Scored!</span>
-              </button>
-
+            <div>
               {/* Mark Tired */}
               <button
                 onClick={() => onToggleTired(player.id)}
-                className={`flex items-center justify-center gap-2 py-3 px-3 font-bold text-sm rounded-2xl border transition active:scale-95 ${
+                className={`w-full flex items-center justify-center gap-2 py-3 px-3 font-bold text-sm rounded-2xl border transition active:scale-95 ${
                   state.isTired
                     ? 'bg-red-950/80 text-red-300 border-red-700 shadow-inner'
                     : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border-slate-700'

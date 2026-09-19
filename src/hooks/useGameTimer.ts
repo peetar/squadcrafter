@@ -19,21 +19,33 @@ export function useGameTimer({ game, onTick, onPeriodComplete }: UseGameTimerPro
 
     lastTimeRef.current = Date.now();
 
-    const interval = setInterval(() => {
+    const processTick = () => {
+      if (lastTimeRef.current === null) return;
       const now = Date.now();
-      if (lastTimeRef.current !== null) {
-        const diffSeconds = Math.round((now - lastTimeRef.current) / 1000);
-        if (diffSeconds >= 1) {
-          onTick(diffSeconds);
-          lastTimeRef.current = now;
-        }
-      } else {
-        lastTimeRef.current = now;
+      const elapsedMs = now - lastTimeRef.current;
+      const elapsedSeconds = Math.floor(elapsedMs / 1000);
+
+      if (elapsedSeconds >= 1) {
+        // Advance baseline strictly by the integer seconds consumed so sub-second remainder is never lost or accelerated
+        lastTimeRef.current += elapsedSeconds * 1000;
+        onTick(elapsedSeconds);
       }
-    }, 500);
+    };
+
+    // Check every 250ms for responsive tick timing without any rounding errors
+    const interval = setInterval(processTick, 250);
+
+    // Sync immediately when mobile device wakes up or app returns from background
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        processTick();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       lastTimeRef.current = null;
     };
   }, [game?.status, onTick]);

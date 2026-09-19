@@ -296,7 +296,7 @@ export const SoccerPitch: React.FC<SoccerPitchProps> = ({
     <div className="flex flex-col flex-1 min-h-full max-w-lg mx-auto w-full pb-28 relative touch-none">
       {/* Dynamic Feedback Toast for Drag & Drop Swaps */}
       {feedbackToast && (
-        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-slate-900 border-2 border-emerald-500 text-white text-xs font-bold px-4 py-2 rounded-2xl shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-top-4 duration-150">
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 backdrop-blur border-2 border-emerald-500 text-white text-xs font-bold px-4 py-2 rounded-2xl shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-150 pointer-events-none">
           {feedbackToast.type === 'swap' ? (
             <ArrowLeftRight className="w-4 h-4 text-blue-400" />
           ) : (
