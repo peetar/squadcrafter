@@ -1,7 +1,23 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Player, Game, Formation } from '../../types/soccer';
 import { formatTime } from '../../utils/celebration';
-import { Users, Shuffle, RefreshCw, Clock, Flame, Shield, Star, Lock, FastForward, Flag } from 'lucide-react';
+import { 
+  Users, 
+  Shuffle, 
+  RefreshCw, 
+  Clock, 
+  Flame, 
+  Shield, 
+  Star, 
+  Lock, 
+  FastForward, 
+  Flag, 
+  UserX, 
+  UserCheck, 
+  ChevronDown, 
+  ChevronUp, 
+  Plus 
+} from 'lucide-react';
 
 interface BenchTrayProps {
   game: Game;
@@ -12,6 +28,7 @@ interface BenchTrayProps {
   onDirectSubTrigger: (player: Player) => void;
   onAdvancePeriod?: () => void;
   onEndGame?: () => void;
+  onToggleAvailability?: (playerId: string) => void;
 }
 
 export const BenchTray: React.FC<BenchTrayProps> = ({
@@ -23,10 +40,18 @@ export const BenchTray: React.FC<BenchTrayProps> = ({
   onDirectSubTrigger,
   onAdvancePeriod,
   onEndGame,
+  onToggleAvailability,
 }) => {
+  const [showAbsentList, setShowAbsentList] = useState(true);
+
   const benchPlayers = players.filter(p => {
     const s = game.playerStates[p.id];
     return s && s.status === 'on_bench';
+  });
+
+  const absentPlayers = players.filter(p => {
+    const s = game.playerStates[p.id];
+    return s && s.status === 'absent';
   });
 
   // Sort descending by current sit time
@@ -196,6 +221,76 @@ export const BenchTray: React.FC<BenchTrayProps> = ({
               </div>
             );
           })
+        )}
+
+        {/* Inactive / Cannot Play (CNP) Section */}
+        {absentPlayers.length > 0 && (
+          <div className="pt-4 space-y-2.5">
+            <button
+              onClick={() => setShowAbsentList(!showAbsentList)}
+              className="w-full flex items-center justify-between text-xs font-bold text-rose-400/90 bg-rose-950/30 hover:bg-rose-950/50 border border-rose-900/50 px-3.5 py-2.5 rounded-2xl transition"
+            >
+              <div className="flex items-center gap-2">
+                <UserX className="w-4 h-4 text-rose-400" />
+                <span>Cannot Play / Inactive ({absentPlayers.length})</span>
+                <span className="text-[10px] text-slate-400 font-normal">
+                  (Not accruing bench time)
+                </span>
+              </div>
+              {showAbsentList ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+
+            {showAbsentList && (
+              <div className="space-y-2">
+                {absentPlayers.map(player => {
+                  const state = game.playerStates[player.id];
+                  const totalFieldMinutes = Math.floor((state?.totalFieldSeconds || 0) / 60);
+
+                  return (
+                    <div
+                      key={player.id}
+                      className="p-3 bg-slate-900/50 border border-dashed border-slate-800 rounded-2xl flex items-center justify-between gap-3 opacity-80 hover:opacity-100 transition"
+                    >
+                      {/* Left: Player Avatar & Details */}
+                      <div 
+                        onClick={() => onPlayerTap(player)}
+                        className="flex items-center gap-3 cursor-pointer flex-1 min-w-0"
+                      >
+                        <div className="w-10 h-10 rounded-2xl bg-slate-800/80 text-slate-400 border border-slate-700/60 flex items-center justify-center font-bold text-sm">
+                          {player.number}
+                        </div>
+
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 font-bold text-sm text-slate-300 truncate">
+                            <span className="truncate">{player.name}</span>
+                            <span className="text-[9px] font-black uppercase bg-rose-950 text-rose-300 border border-rose-800 px-1.5 py-0.2 rounded-md">
+                              CNP
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5">
+                            <span>{player.preferredPositions.join(', ')}</span>
+                            {totalFieldMinutes > 0 && <span> • Played {totalFieldMinutes}m</span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right: Quick Reactivate Button */}
+                      {onToggleAvailability && (
+                        <button
+                          onClick={() => onToggleAvailability(player.id)}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600/30 hover:bg-emerald-600/50 active:scale-95 text-emerald-300 border border-emerald-500/40 font-bold text-xs rounded-xl transition shadow-sm"
+                          title="Activate player to bench"
+                        >
+                          <UserCheck className="w-3.5 h-3.5" />
+                          <span>Activate</span>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         )}
 
         {/* Dedicated bottom spacer to prevent footer navbar overlap */}

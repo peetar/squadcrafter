@@ -53,6 +53,8 @@ export const GameStatsSummary: React.FC<GameStatsSummaryProps> = ({
         const benchSec = s?.totalBenchSeconds || 0;
         const pct = Math.round((fieldSec / totalMatchSeconds) * 100);
 
+        const isAbsent = s?.status === 'absent';
+
         return {
           player: p,
           fieldSeconds: fieldSec,
@@ -63,6 +65,7 @@ export const GameStatsSummary: React.FC<GameStatsSummaryProps> = ({
           isGoalie: p.canPlayGK,
           goals: s?.goals || 0,
           status: s?.status || 'on_bench',
+          isAbsent,
         };
       }).sort((a, b) => b.fieldSeconds - a.fieldSeconds)
     : [];
@@ -255,7 +258,12 @@ export const GameStatsSummary: React.FC<GameStatsSummaryProps> = ({
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-1.5 font-bold text-white">
                         <span className="font-mono text-slate-400 text-[11px]">#{item.player.number}</span>
-                        <span>{item.player.name}</span>
+                        <span className={item.isAbsent ? 'text-slate-400 line-through decoration-rose-500/50' : ''}>{item.player.name}</span>
+                        {item.isAbsent && (
+                          <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-rose-950 text-rose-300 border border-rose-800/60">
+                            CNP
+                          </span>
+                        )}
                         {item.isGoalie && (
                           <span className="text-[9px] bg-amber-400/20 text-amber-400 border border-amber-400/30 px-1 rounded">
                             GK
@@ -267,11 +275,17 @@ export const GameStatsSummary: React.FC<GameStatsSummaryProps> = ({
                       </div>
 
                       <div className="font-mono text-xs flex items-center gap-2">
-                        <span className="text-emerald-400 font-bold">{item.fieldMinutes}m played</span>
-                        <span className="text-slate-500">/</span>
-                        <span className="text-slate-400">{item.benchMinutes}m sat</span>
+                        {item.isAbsent && item.fieldMinutes === 0 && item.benchMinutes === 0 ? (
+                          <span className="text-slate-500 text-[11px]">Unavailable</span>
+                        ) : (
+                          <>
+                            <span className="text-emerald-400 font-bold">{item.fieldMinutes}m played</span>
+                            <span className="text-slate-500">/</span>
+                            <span className="text-slate-400">{item.benchMinutes}m sat</span>
+                          </>
+                        )}
                         <span className={`text-[11px] font-bold px-1.5 py-0.2 rounded ${
-                          isFair ? 'bg-emerald-950 text-emerald-400' : 'bg-amber-950 text-amber-400'
+                          item.isAbsent ? 'bg-slate-800 text-slate-400' : isFair ? 'bg-emerald-950 text-emerald-400' : 'bg-amber-950 text-amber-400'
                         }`}>
                           {item.percent}%
                         </span>

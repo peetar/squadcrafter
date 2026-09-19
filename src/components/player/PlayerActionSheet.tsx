@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Player, PlayerMatchState, PositionCategory, TacticalOverrideType } from '../../types/soccer';
 import { celebrateGoal, formatTime } from '../../utils/celebration';
-import { X, Flame, RefreshCw, Star, Lock, Award, ShieldAlert } from 'lucide-react';
+import { X, Flame, RefreshCw, Star, Lock, Award, ShieldAlert, UserX, UserCheck } from 'lucide-react';
 
 interface PlayerActionSheetProps {
   player: Player;
@@ -9,6 +9,7 @@ interface PlayerActionSheetProps {
   onClose: () => void;
   onRegisterGoal: (playerId: string) => void;
   onToggleTired: (playerId: string) => void;
+  onToggleAvailability?: (playerId: string) => void;
   onSuggestSub: (player: Player) => void;
   onSetOverride: (playerId: string, type: TacticalOverrideType, category?: PositionCategory) => void;
 }
@@ -19,10 +20,12 @@ export const PlayerActionSheet: React.FC<PlayerActionSheetProps> = ({
   onClose,
   onRegisterGoal,
   onToggleTired,
+  onToggleAvailability,
   onSuggestSub,
   onSetOverride,
 }) => {
   const isOnField = state.status === 'on_field';
+  const isAbsent = state.status === 'absent';
   const [selectedCategory, setSelectedCategory] = useState<PositionCategory>(
     state.tacticalOverride?.targetCategory || player.preferredPositions[0] || 'MID'
   );
@@ -62,14 +65,17 @@ export const PlayerActionSheet: React.FC<PlayerActionSheetProps> = ({
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-base text-white">{player.name}</h3>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  isOnField ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-slate-800 text-slate-300'
+                  isAbsent
+                    ? 'bg-rose-950 text-rose-300 border border-rose-800'
+                    : isOnField
+                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                    : 'bg-slate-800 text-slate-300'
                 }`}>
-                  {isOnField ? (state.assignedRole || 'Field') : 'Bench'}
+                  {isAbsent ? 'CNP (Inactive)' : isOnField ? (state.assignedRole || 'Field') : 'Bench'}
                 </span>
               </div>
               <div className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
-                <span>Stint: {formatTime(state.currentStintSeconds)}</span>
-                <span>•</span>
+                {!isAbsent && <span>Stint: {formatTime(state.currentStintSeconds)} • </span>}
                 <span>Total Field: {Math.round(state.totalFieldSeconds / 60)}m</span>
                 {state.goals > 0 && (
                   <>
@@ -92,41 +98,83 @@ export const PlayerActionSheet: React.FC<PlayerActionSheetProps> = ({
         {/* Action Buttons Grid */}
         <div className="p-4 space-y-3">
           {/* Primary Quick Actions */}
-          <div className="grid grid-cols-2 gap-2.5">
-            {/* Goal Scored */}
-            <button
-              onClick={handleGoal}
-              className="flex items-center justify-center gap-2 py-3 px-3 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-bold text-sm rounded-2xl shadow-md active:scale-95 transition"
-            >
-              <span className="text-lg">⚽</span>
-              <span>Goal Scored!</span>
-            </button>
+          {!isAbsent && (
+            <div className="grid grid-cols-2 gap-2.5">
+              {/* Goal Scored */}
+              <button
+                onClick={handleGoal}
+                className="flex items-center justify-center gap-2 py-3 px-3 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-bold text-sm rounded-2xl shadow-md active:scale-95 transition"
+              >
+                <span className="text-lg">⚽</span>
+                <span>Goal Scored!</span>
+              </button>
 
-            {/* Mark Tired */}
+              {/* Mark Tired */}
+              <button
+                onClick={() => onToggleTired(player.id)}
+                className={`flex items-center justify-center gap-2 py-3 px-3 font-bold text-sm rounded-2xl border transition active:scale-95 ${
+                  state.isTired
+                    ? 'bg-red-950/80 text-red-300 border-red-700 shadow-inner'
+                    : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border-slate-700'
+                }`}
+              >
+                <Flame className={`w-4 h-4 ${state.isTired ? 'text-red-400 fill-current animate-bounce' : 'text-slate-400'}`} />
+                <span>{state.isTired ? 'Tired (Resting)' : 'Mark Tired'}</span>
+              </button>
+            </div>
+          )}
+
+          {/* Suggest Substitution Action (only if available) */}
+          {!isAbsent && (
             <button
-              onClick={() => onToggleTired(player.id)}
-              className={`flex items-center justify-center gap-2 py-3 px-3 font-bold text-sm rounded-2xl border transition active:scale-95 ${
-                state.isTired
-                  ? 'bg-red-950/80 text-red-300 border-red-700 shadow-inner'
-                  : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border-slate-700'
+              onClick={() => {
+                onSuggestSub(player);
+                onClose();
+              }}
+              className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 active:scale-95 transition"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>{isOnField ? 'Suggest Sub for ' + player.name.split(' ')[0] : 'Suggest Field Position for ' + player.name.split(' ')[0]}</span>
+            </button>
+          )}
+
+          {/* Player Availability (CNP / Cannot Play Toggle) */}
+          {onToggleAvailability && (
+            <button
+              onClick={() => {
+                onToggleAvailability(player.id);
+                onClose();
+              }}
+              className={`w-full py-2.5 px-4 font-bold text-xs rounded-2xl border flex items-center justify-between transition active:scale-98 ${
+                isAbsent
+                  ? 'bg-emerald-950/80 hover:bg-emerald-900 border-emerald-600 text-emerald-200'
+                  : 'bg-rose-950/40 hover:bg-rose-950/70 border-rose-900/60 text-rose-300'
               }`}
             >
-              <Flame className={`w-4 h-4 ${state.isTired ? 'text-red-400 fill-current animate-bounce' : 'text-slate-400'}`} />
-              <span>{state.isTired ? 'Tired (Resting)' : 'Mark Tired'}</span>
+              <div className="flex items-center gap-2.5">
+                {isAbsent ? (
+                  <UserCheck className="w-4 h-4 text-emerald-400" />
+                ) : (
+                  <UserX className="w-4 h-4 text-rose-400" />
+                )}
+                <div className="text-left">
+                  <div className="font-extrabold text-xs">
+                    {isAbsent ? 'Activate Player (Available to Play)' : 'Mark Cannot Play (CNP)'}
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-normal">
+                    {isAbsent
+                      ? 'Player arrived / recovered: move to bench & start minutes'
+                      : 'Player is absent, sick, or injured (stops bench minutes)'}
+                  </div>
+                </div>
+              </div>
+              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                isAbsent ? 'bg-emerald-800 text-white' : 'bg-rose-900/80 text-rose-200'
+              }`}>
+                {isAbsent ? 'Activate' : 'Mark CNP'}
+              </span>
             </button>
-          </div>
-
-          {/* Suggest Substitution Action */}
-          <button
-            onClick={() => {
-              onSuggestSub(player);
-              onClose();
-            }}
-            className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 active:scale-95 transition"
-          >
-            <RefreshCw className="w-4 h-4" />
-            <span>{isOnField ? 'Suggest Sub for ' + player.name.split(' ')[0] : 'Suggest Field Position for ' + player.name.split(' ')[0]}</span>
-          </button>
+          )}
 
           {/* Tactical Overrides Section (FORCE / FAVOR) */}
           <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-3">

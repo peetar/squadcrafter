@@ -385,6 +385,7 @@ export function App() {
                 onDirectSubTrigger={handleSuggestSub}
                 onAdvancePeriod={store.advancePeriod}
                 onEndGame={handleEndGame}
+                onToggleAvailability={store.togglePlayerAvailability}
               />
             )}
 
@@ -463,6 +464,7 @@ export function App() {
           onClose={() => setActionSheetPlayer(null)}
           onRegisterGoal={(pId) => store.registerGoal(pId, true)}
           onToggleTired={store.togglePlayerTired}
+          onToggleAvailability={store.togglePlayerAvailability}
           onSuggestSub={handleSuggestSub}
           onSetOverride={handleSetOverride}
         />

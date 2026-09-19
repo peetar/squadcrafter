@@ -468,6 +468,68 @@ export function useSoccerStore() {
     });
   }, []);
 
+  // Toggle Player Availability (CNP / Absent / Active)
+  const togglePlayerAvailability = useCallback((playerId: string) => {
+    setState(prev => {
+      if (!prev.activeGame) return prev;
+      const current = prev.activeGame.playerStates[playerId];
+      if (!current) return prev;
+
+      const team = prev.teams.find(t => t.id === prev.activeGame?.teamId);
+      const player = team?.players.find(p => p.id === playerId);
+      const playerName = player?.name || `#${player?.number ?? ''}`;
+
+      let nextStatus: 'on_field' | 'on_bench' | 'absent';
+      let description = '';
+
+      if (current.status === 'absent') {
+        // Player arrives or recovers: activate them to bench
+        nextStatus = 'on_bench';
+        description = `${playerName} activated (available on bench)`;
+      } else {
+        // Player is sick/injured/absent: mark CNP
+        nextStatus = 'absent';
+        description = `${playerName} marked Cannot Play (CNP)`;
+      }
+
+      // Remove any queued subs involving this player
+      const updatedQueuedSubs = prev.activeGame.queuedSubs.filter(
+        q => q.playerInId !== playerId && q.playerOutId !== playerId
+      );
+
+      const event: MatchEvent = {
+        id: 'evt-avail-' + Date.now(),
+        gameId: prev.activeGame.id,
+        matchSecond: Math.floor(prev.activeGame.totalElapsedSeconds),
+        period: prev.activeGame.currentPeriod,
+        type: 'sub',
+        playerId,
+        description,
+        timestamp: Date.now(),
+      };
+
+      return {
+        ...prev,
+        activeGame: {
+          ...prev.activeGame,
+          playerStates: {
+            ...prev.activeGame.playerStates,
+            [playerId]: {
+              ...current,
+              status: nextStatus,
+              assignedSlotId: nextStatus === 'absent' ? undefined : current.assignedSlotId,
+              assignedRole: nextStatus === 'absent' ? undefined : current.assignedRole,
+              currentStintSeconds: 0,
+              isTired: false,
+            },
+          },
+          queuedSubs: updatedQueuedSubs,
+          events: [...prev.activeGame.events, event],
+        },
+      };
+    });
+  }, []);
+
   // Register Goal
   const registerGoal = useCallback((playerId: string, isUs: boolean = true) => {
     setState(prev => {
@@ -961,6 +1023,7 @@ export function useSoccerStore() {
     tickTimer,
     setTacticalOverride,
     togglePlayerTired,
+    togglePlayerAvailability,
     registerGoal,
     registerOpponentGoal,
     adjustScore,

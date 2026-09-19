@@ -19,7 +19,7 @@ export function autoFillLineup(
     const existing = existingStates?.[p.id];
     resultStates[p.id] = {
       playerId: p.id,
-      status: 'on_bench',
+      status: existing?.status === 'absent' ? 'absent' : 'on_bench',
       assignedSlotId: undefined,
       assignedRole: undefined,
       totalFieldSeconds: existing?.totalFieldSeconds || 0,
@@ -31,7 +31,8 @@ export function autoFillLineup(
     };
   });
 
-  const availablePlayers = [...players];
+  // Only non-absent players are available to start on field
+  const availablePlayers = players.filter(p => resultStates[p.id]?.status !== 'absent');
   const unassignedSlots = [...formation.slots];
 
   // 1. Assign Goalkeeper
