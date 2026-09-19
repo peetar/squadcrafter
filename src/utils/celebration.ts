@@ -48,3 +48,11 @@ export function formatMinutes(seconds: number): string {
   const m = Math.round(seconds / 60);
   return `${m}m`;
 }
+
+export function formatPlayerMinutesRatio(state?: { totalFieldSeconds?: number; totalBenchSeconds?: number; status?: string } | null): string {
+  if (!state) return '00/00';
+  const playedMins = Math.floor((state.totalFieldSeconds || 0) / 60);
+  const totalMins = Math.floor(((state.totalFieldSeconds || 0) + (state.totalBenchSeconds || 0)) / 60);
+  return `${playedMins.toString().padStart(2, '0')}/${totalMins.toString().padStart(2, '0')}`;
+}
+

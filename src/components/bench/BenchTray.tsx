@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Player, Game, Formation } from '../../types/soccer';
-import { formatTime } from '../../utils/celebration';
+import { formatTime, formatPlayerMinutesRatio } from '../../utils/celebration';
 import { 
   Users, 
   Shuffle, 
@@ -185,7 +185,7 @@ export const BenchTray: React.FC<BenchTrayProps> = ({
                         {player.preferredPositions.join(', ')}
                       </span>
                       <span>•</span>
-                      <span>Played: {totalFieldMinutes}m</span>
+                      <span className="font-mono font-bold text-slate-300">Played: {formatPlayerMinutesRatio(state)}</span>
                     </div>
                   </div>
                 </div>
@@ -202,10 +202,10 @@ export const BenchTray: React.FC<BenchTrayProps> = ({
                         : 'bg-slate-800 text-slate-300 border-slate-700'
                     }`}>
                       <Clock className="w-3 h-3" />
-                      <span>{formatTime(sitSeconds)}</span>
+                      <span>{formatPlayerMinutesRatio(state)}</span>
                     </div>
                     <div className="text-[10px] text-slate-500 mt-0.5">
-                      Total sat: {totalBenchMinutes}m
+                      Sat: {formatTime(sitSeconds)}
                     </div>
                   </div>
 
@@ -269,7 +269,7 @@ export const BenchTray: React.FC<BenchTrayProps> = ({
                           </div>
                           <div className="text-[11px] text-slate-500 mt-0.5">
                             <span>{player.preferredPositions.join(', ')}</span>
-                            {totalFieldMinutes > 0 && <span> • Played {totalFieldMinutes}m</span>}
+                            <span> • {formatPlayerMinutesRatio(state)}</span>
                           </div>
                         </div>
                       </div>

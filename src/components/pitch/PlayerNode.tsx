@@ -1,6 +1,6 @@
 import React from 'react';
 import { Player, PlayerMatchState, QueuedSub } from '../../types/soccer';
-import { formatTime } from '../../utils/celebration';
+import { formatTime, formatPlayerMinutesRatio } from '../../utils/celebration';
 import { Flame, Star, Lock, RefreshCw } from 'lucide-react';
 
 interface PlayerNodeProps {
@@ -121,15 +121,18 @@ export const PlayerNode: React.FC<PlayerNodeProps> = ({
           </span>
         </div>
 
-        {/* Current Stint Timer */}
-        <span className={`text-[9px] font-mono font-medium px-1 rounded mt-0.5 shadow-sm ${
-          state.currentStintSeconds >= 720 
-            ? 'bg-red-950/80 text-red-300 border border-red-800/50' 
-            : state.currentStintSeconds >= 480
-            ? 'bg-amber-950/80 text-amber-300 border border-amber-800/50'
-            : 'bg-black/50 text-slate-300'
-        }`}>
-          {formatTime(state.currentStintSeconds)}
+        {/* Played / Total Minutes Ratio */}
+        <span 
+          title={`Played ${Math.floor((state.totalFieldSeconds || 0) / 60)}m of ${Math.floor(((state.totalFieldSeconds || 0) + (state.totalBenchSeconds || 0)) / 60)}m eligible (Stint: ${formatTime(state.currentStintSeconds)})`}
+          className={`text-[9px] font-mono font-bold px-1 rounded mt-0.5 shadow-sm ${
+            state.currentStintSeconds >= 720 
+              ? 'bg-red-950/80 text-red-300 border border-red-800/50' 
+              : state.currentStintSeconds >= 480
+              ? 'bg-amber-950/80 text-amber-300 border border-amber-800/50'
+              : 'bg-black/50 text-slate-300'
+          }`}
+        >
+          {formatPlayerMinutesRatio(state)}
         </span>
       </div>
     </div>

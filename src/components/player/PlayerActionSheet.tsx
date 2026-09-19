@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Player, PlayerMatchState, PositionCategory, TacticalOverrideType } from '../../types/soccer';
-import { formatTime } from '../../utils/celebration';
+import { formatTime, formatPlayerMinutesRatio } from '../../utils/celebration';
 import { X, Flame, RefreshCw, Star, Lock, Award, ShieldAlert, UserX, UserCheck } from 'lucide-react';
 
 interface PlayerActionSheetProps {
@@ -68,8 +68,8 @@ export const PlayerActionSheet: React.FC<PlayerActionSheetProps> = ({
                 </span>
               </div>
               <div className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
-                {!isAbsent && <span>Stint: {formatTime(state.currentStintSeconds)} • </span>}
-                <span>Total Field: {Math.round(state.totalFieldSeconds / 60)}m</span>
+                <span className="font-mono font-bold text-slate-200">Time: {formatPlayerMinutesRatio(state)}</span>
+                {!isAbsent && <span>• Stint: {formatTime(state.currentStintSeconds)}</span>}
                 {state.goals > 0 && (
                   <>
                     <span>•</span>

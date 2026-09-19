@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Formation, Game, Player } from '../../types/soccer';
 import { PlayerNode } from './PlayerNode';
+import { formatPlayerMinutesRatio } from '../../utils/celebration';
 import { Users, Shuffle, AlertCircle, ArrowLeftRight, CheckCircle2, ArrowDownUp, FastForward, Flag, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface SoccerPitchProps {
@@ -631,7 +632,12 @@ export const SoccerPitch: React.FC<SoccerPitchProps> = ({
                         {bp.name.split(' ')[0]}
                       </div>
                       <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1">
-                        <span>{sitMinutes}m sat</span>
+                        <span 
+                          title={`Played ${Math.floor((bState?.totalFieldSeconds || 0) / 60)}m / Total ${Math.floor(((bState?.totalFieldSeconds || 0) + (bState?.totalBenchSeconds || 0)) / 60)}m (Sat: ${sitMinutes}m)`}
+                          className="font-bold text-slate-300"
+                        >
+                          {formatPlayerMinutesRatio(bState)}
+                        </span>
                         {bp.canPlayGK && <span className="text-[9px] text-amber-400 font-bold">GK</span>}
                       </div>
                     </div>
