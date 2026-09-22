@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Team, SubstitutionMode } from '../../types/soccer';
 import { FORMATIONS, getFormationsByPlayerCount } from '../../data/formations';
+import { BASKETBALL_FORMATIONS } from '../../data/basketballSets';
 import { X, Play, Shield, Compass, Clock, Check } from 'lucide-react';
 
 interface NewGameModalProps {
@@ -29,33 +30,69 @@ export const NewGameModal: React.FC<NewGameModalProps> = ({
   const [opponentName, setOpponentName] = useState('');
 
   const currentTeam = teams.find(t => t.id === selectedTeamId) || activeTeam;
-  const [playerCount, setPlayerCount] = useState<number>(currentTeam.defaultPlayerCount);
+  const isBasketball = currentTeam.sport === 'basketball';
 
-  const availableFormations = getFormationsByPlayerCount(playerCount);
+  const [playerCount, setPlayerCount] = useState<number>(currentTeam.defaultPlayerCount || (isBasketball ? 5 : 7));
+
+  const availableFormations = isBasketball
+    ? BASKETBALL_FORMATIONS.filter(f => f.playerCount === playerCount)
+    : getFormationsByPlayerCount(playerCount);
+
   const [selectedFormationId, setSelectedFormationId] = useState<string>(
-    availableFormations[0]?.id || '7v7-2-3-1'
+    availableFormations[0]?.id || (isBasketball ? 'bb-5out' : '7v7-2-3-1')
   );
 
-  const [subMode, setSubMode] = useState<SubstitutionMode>('free');
-  const [cleanGoalieSwaps, setCleanGoalieSwaps] = useState<boolean>(true);
+  const [subMode, setSubMode] = useState<SubstitutionMode>(isBasketball ? 'quarters' : 'free');
+  const [cleanGoalieSwaps, setCleanGoalieSwaps] = useState<boolean>(!isBasketball);
 
   // Match Periods (2 halves vs 4 quarters)
-  const [matchStructure, setMatchStructure] = useState<'halves' | 'quarters'>('halves');
-  const [periodDuration, setPeriodDuration] = useState<number>(25);
+  const [matchStructure, setMatchStructure] = useState<'halves' | 'quarters'>(isBasketball ? 'quarters' : 'halves');
+  const [periodDuration, setPeriodDuration] = useState<number>(isBasketball ? 8 : 25);
+
+  // Update defaults if selected team changes
+  const handleTeamChange = (teamId: string) => {
+    setSelectedTeamId(teamId);
+    const t = teams.find(team => team.id === teamId) || activeTeam;
+    const isBb = t.sport === 'basketball';
+    const count = t.defaultPlayerCount || (isBb ? 5 : 7);
+    setPlayerCount(count);
+
+    if (isBb) {
+      const bFormations = BASKETBALL_FORMATIONS.filter(f => f.playerCount === count);
+      setSelectedFormationId(bFormations[0]?.id || 'bb-5out');
+      setMatchStructure('quarters');
+      setPeriodDuration(8);
+      setCleanGoalieSwaps(false);
+      setSubMode('quarters');
+    } else {
+      const sFormations = getFormationsByPlayerCount(count);
+      setSelectedFormationId(sFormations[0]?.id || '7v7-2-3-1');
+      setMatchStructure('halves');
+      setPeriodDuration(25);
+      setCleanGoalieSwaps(true);
+      setSubMode('free');
+    }
+  };
+
+  useEffect(() => {
+    handleTeamChange(activeTeam.id);
+  }, [activeTeam.id]);
 
   const handleStructureChange = (structure: 'halves' | 'quarters') => {
     setMatchStructure(structure);
     if (structure === 'halves') {
-      setPeriodDuration(25);
+      setPeriodDuration(isBasketball ? 16 : 25);
     } else {
-      setPeriodDuration(12);
+      setPeriodDuration(isBasketball ? 8 : 12);
       setSubMode('quarters');
     }
   };
 
   const handlePlayerCountChange = (count: number) => {
     setPlayerCount(count);
-    const formations = getFormationsByPlayerCount(count);
+    const formations = isBasketball
+      ? BASKETBALL_FORMATIONS.filter(f => f.playerCount === count)
+      : getFormationsByPlayerCount(count);
     if (formations.length > 0) {
       setSelectedFormationId(formations[0].id);
     }
@@ -105,11 +142,7 @@ export const NewGameModal: React.FC<NewGameModalProps> = ({
               <label className="block text-xs font-bold text-slate-300 mb-1">Our Team</label>
               <select
                 value={selectedTeamId}
-                onChange={e => {
-                  setSelectedTeamId(e.target.value);
-                  const t = teams.find(team => team.id === e.target.value);
-                  if (t) handlePlayerCountChange(t.defaultPlayerCount);
-                }}
+                onChange={e => handleTeamChange(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-emerald-500"
               >
                 {teams.map(t => (
@@ -132,49 +165,68 @@ export const NewGameModal: React.FC<NewGameModalProps> = ({
             </div>
           </div>
 
-          {/* Number of Players on Field (Flexible) */}
+          {/* Number of Players on Field / Court */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-bold text-slate-300">
-                Number of Players on Field (Match Format)
+                Number of Players on {isBasketball ? 'Court' : 'Field'} (Match Format)
               </label>
               <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/60">
                 {playerCount}v{playerCount}
               </span>
             </div>
-            <div className="grid grid-cols-4 gap-2">
-              {[7, 9, 11].map(cnt => (
-                <button
-                  key={cnt}
-                  type="button"
-                  onClick={() => handlePlayerCountChange(cnt)}
-                  className={`py-2 rounded-xl text-xs font-bold border transition ${
-                    playerCount === cnt
-                      ? 'bg-blue-600 border-blue-400 text-white shadow'
-                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  {cnt}v{cnt}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => handlePlayerCountChange(5)}
-                className={`py-2 rounded-xl text-xs font-bold border transition ${
-                  playerCount === 5
-                    ? 'bg-blue-600 border-blue-400 text-white shadow'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                5v5
-              </button>
+            <div className={`grid ${isBasketball ? 'grid-cols-2' : 'grid-cols-4'} gap-2`}>
+              {isBasketball ? (
+                [5, 3].map(cnt => (
+                  <button
+                    key={cnt}
+                    type="button"
+                    onClick={() => handlePlayerCountChange(cnt)}
+                    className={`py-2 rounded-xl text-xs font-bold border transition ${
+                      playerCount === cnt
+                        ? 'bg-amber-600 border-amber-400 text-white shadow'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {cnt}v{cnt} {cnt === 5 ? '(Full Court)' : '(Half Court / 3v3)'}
+                  </button>
+                ))
+              ) : (
+                <>
+                  {[7, 9, 11].map(cnt => (
+                    <button
+                      key={cnt}
+                      type="button"
+                      onClick={() => handlePlayerCountChange(cnt)}
+                      className={`py-2 rounded-xl text-xs font-bold border transition ${
+                        playerCount === cnt
+                          ? 'bg-blue-600 border-blue-400 text-white shadow'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {cnt}v{cnt}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => handlePlayerCountChange(5)}
+                    className={`py-2 rounded-xl text-xs font-bold border transition ${
+                      playerCount === 5
+                        ? 'bg-blue-600 border-blue-400 text-white shadow'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    5v5
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
           {/* Lineup Formations */}
           <div>
             <label className="block text-xs font-bold text-slate-300 mb-1.5">
-              Suggested Formations ({playerCount}v{playerCount})
+              Suggested {isBasketball ? 'Sets & Formations' : 'Formations'} ({playerCount}v{playerCount})
             </label>
             <div className="space-y-2">
               {availableFormations.map(f => {
@@ -185,17 +237,14 @@ export const NewGameModal: React.FC<NewGameModalProps> = ({
                     onClick={() => setSelectedFormationId(f.id)}
                     className={`p-2.5 rounded-xl border cursor-pointer transition ${
                       isSelected
-                        ? 'bg-slate-800 border-emerald-500 ring-1 ring-emerald-500'
+                        ? isBasketball ? 'bg-slate-800 border-amber-500 ring-1 ring-amber-500' : 'bg-slate-800 border-emerald-500 ring-1 ring-emerald-500'
                         : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
                     }`}
                   >
                     <div className="flex items-center justify-between text-xs font-bold text-white">
                       <span>{f.name}</span>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                      {isSelected && <Check className={`w-3.5 h-3.5 ${isBasketball ? 'text-amber-400' : 'text-emerald-400'}`} />}
                     </div>
-                    <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">
-                      {f.description}
-                    </p>
                   </div>
                 );
               })}
@@ -237,32 +286,34 @@ export const NewGameModal: React.FC<NewGameModalProps> = ({
               </button>
             </div>
 
-            {/* Clean Goalie Swaps Preference */}
-            <div className="flex items-center justify-between p-3 bg-slate-950/70 rounded-xl border border-slate-800">
-              <div className="flex items-center gap-2.5">
-                <Shield className="w-4 h-4 text-amber-400" />
-                <div>
-                  <div className="text-xs font-bold text-white">Clean Goalie Swaps</div>
-                  <div className="text-[10px] text-slate-400 leading-tight">
-                    Only swap keeper at halftime or direct 1-to-1 bench swap
+            {/* Clean Goalie Swaps Preference (Soccer only) */}
+            {!isBasketball && (
+              <div className="flex items-center justify-between p-3 bg-slate-950/70 rounded-xl border border-slate-800">
+                <div className="flex items-center gap-2.5">
+                  <Shield className="w-4 h-4 text-amber-400" />
+                  <div>
+                    <div className="text-xs font-bold text-white">Clean Goalie Swaps</div>
+                    <div className="text-[10px] text-slate-400 leading-tight">
+                      Only swap keeper at halftime or direct 1-to-1 bench swap
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <button
-                type="button"
-                onClick={() => setCleanGoalieSwaps(!cleanGoalieSwaps)}
-                className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 ${
-                  cleanGoalieSwaps ? 'bg-emerald-600' : 'bg-slate-700'
-                }`}
-              >
-                <span
-                  className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                    cleanGoalieSwaps ? 'translate-x-5' : 'translate-x-0'
+                <button
+                  type="button"
+                  onClick={() => setCleanGoalieSwaps(!cleanGoalieSwaps)}
+                  className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 ${
+                    cleanGoalieSwaps ? 'bg-emerald-600' : 'bg-slate-700'
                   }`}
-                />
-              </button>
-            </div>
+                >
+                  <span
+                    className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                      cleanGoalieSwaps ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Match Structure & Duration */}

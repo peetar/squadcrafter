@@ -11,8 +11,10 @@ import {
   MatchEvent,
   PositionCategory
 } from '../types/soccer';
+import { SportType, TimeTrackingMode, ClockDirection } from '../types/sport';
 import { SAMPLE_TEAMS } from '../data/sampleData';
 import { FORMATIONS, getDefaultFormation } from '../data/formations';
+import { BASKETBALL_FORMATIONS, getDefaultBasketballFormation } from '../data/basketballSets';
 import { autoFillLineup } from '../services/lineupOptimizer';
 
 const STORAGE_KEY = 'squadcrafter_app_state_v1';
@@ -33,7 +35,8 @@ export interface AppState {
  * 4. Queued subs are strictly between a valid bench player and a valid field player.
  */
 export function reconcileLineupIntegrity(game: Game): Game {
-  const formation = FORMATIONS.find(f => f.id === game.formationId);
+  const allFormations = [...FORMATIONS, ...BASKETBALL_FORMATIONS];
+  const formation = allFormations.find(f => f.id === game.formationId);
   if (!formation) return game;
 
   const validSlotIds = new Set(formation.slots.map(s => s.id));
@@ -184,10 +187,25 @@ export function useSoccerStore() {
     });
   }, []);
 
-  const addTeam = useCallback((name: string, defaultPlayerCount: number, primaryColor: string = '#2563eb', secondaryColor: string = '#facc15') => {
+  const addTeam = useCallback((
+    name: string, 
+    defaultPlayerCount: number, 
+    primaryColor: string = '#2563eb', 
+    secondaryColor: string = '#facc15',
+    sport: SportType = 'soccer',
+    timeTrackingMode: TimeTrackingMode = 'minutes',
+    clockDirection: ClockDirection = 'countup',
+    useStarters: boolean = false,
+    warnMissingPlaymakers: boolean = true
+  ) => {
     const newTeam: Team = {
       id: 'team-' + Date.now(),
       name,
+      sport,
+      timeTrackingMode,
+      clockDirection,
+      useStarters,
+      warnMissingPlaymakers,
       defaultPlayerCount,
       primaryColor,
       secondaryColor,
@@ -197,7 +215,6 @@ export function useSoccerStore() {
     setState(prev => ({
       ...prev,
       teams: [...prev.teams, newTeam],
-      activeTeamId: newTeam.id,
     }));
     return newTeam;
   }, []);
@@ -355,9 +372,11 @@ export function useSoccerStore() {
     const team = state.teams.find(t => t.id === teamId) || activeTeam || state.teams[0];
     if (!team) return null;
 
+    const isBasketball = (team.sport === 'basketball') || formatPlayerCount === 5;
+    const allFormations = isBasketball ? BASKETBALL_FORMATIONS : FORMATIONS;
     const defaultFormation = formationId 
-      ? (FORMATIONS.find(f => f.id === formationId) || getDefaultFormation(formatPlayerCount))
-      : getDefaultFormation(formatPlayerCount);
+      ? (allFormations.find(f => f.id === formationId) || (isBasketball ? getDefaultBasketballFormation(formatPlayerCount) : getDefaultFormation(formatPlayerCount)))
+      : (isBasketball ? getDefaultBasketballFormation(formatPlayerCount) : getDefaultFormation(formatPlayerCount));
 
     // Initial state setup for players
     const initialPlayerStates: Record<string, PlayerMatchState> = {};
@@ -368,19 +387,25 @@ export function useSoccerStore() {
         totalFieldSeconds: 0,
         totalBenchSeconds: 0,
         currentStintSeconds: 0,
+        periodsPlayedCount: 0,
+        periodsPlayed: [],
         isTired: false,
         goals: 0,
       };
     });
 
-    // Auto-fill initial starters lineup
-    const populatedStates = autoFillLineup(team.players, defaultFormation, initialPlayerStates);
+    // Auto-fill initial starters lineup respecting team.useStarters
+    const populatedStates = autoFillLineup(team.players, defaultFormation, initialPlayerStates, Boolean(team.useStarters));
 
     const newGame: Game = {
       id: 'game-' + Date.now(),
       teamId: team.id,
       opponentName: opponentName.trim() || 'Opponent',
       date: new Date().toISOString(),
+      sport: team.sport || (formatPlayerCount === 5 ? 'basketball' : 'soccer'),
+      timeTrackingMode: team.timeTrackingMode || 'minutes',
+      clockDirection: team.clockDirection || 'countup',
+      warnMissingPlaymakers: team.warnMissingPlaymakers ?? true,
       formatPlayerCount,
       formationId: defaultFormation.id,
       subMode,
@@ -435,11 +460,12 @@ export function useSoccerStore() {
       if (!game) return prev;
       const team = prev.teams.find(t => t.id === game.teamId);
       if (!team) return prev;
-      const formation = FORMATIONS.find(f => f.id === newFormationId);
+      const allFormations = [...FORMATIONS, ...BASKETBALL_FORMATIONS];
+      const formation = allFormations.find(f => f.id === newFormationId);
       if (!formation) return prev;
 
       // Re-run auto fill with new formation while preserving stats
-      const updatedStates = autoFillLineup(team.players, formation, game.playerStates);
+      const updatedStates = autoFillLineup(team.players, formation, game.playerStates, Boolean(team.useStarters));
 
       return {
         ...prev,
@@ -460,9 +486,11 @@ export function useSoccerStore() {
       if (!game) return prev;
       const team = prev.teams.find(t => t.id === game.teamId);
       if (!team) return prev;
-      const formation = FORMATIONS.find(f => f.id === game.formationId) || getDefaultFormation(game.formatPlayerCount);
+      const allFormations = [...FORMATIONS, ...BASKETBALL_FORMATIONS];
+      const formation = allFormations.find(f => f.id === game.formationId) || 
+        (team.sport === 'basketball' ? getDefaultBasketballFormation(game.formatPlayerCount) : getDefaultFormation(game.formatPlayerCount));
 
-      const updatedStates = autoFillLineup(team.players, formation, game.playerStates);
+      const updatedStates = autoFillLineup(team.players, formation, game.playerStates, Boolean(team.useStarters));
 
       return {
         ...prev,
@@ -488,10 +516,18 @@ export function useSoccerStore() {
       Object.keys(updatedPlayerStates).forEach(pId => {
         const pState = updatedPlayerStates[pId];
         if (pState.status === 'on_field') {
+          // Record participation in this period while the clock was actually running
+          const currentPeriods = pState.periodsPlayed ? [...pState.periodsPlayed] : [];
+          if (!currentPeriods.includes(g.currentPeriod)) {
+            currentPeriods.push(g.currentPeriod);
+          }
+
           updatedPlayerStates[pId] = {
             ...pState,
             totalFieldSeconds: pState.totalFieldSeconds + deltaSeconds,
             currentStintSeconds: pState.currentStintSeconds + deltaSeconds,
+            periodsPlayed: currentPeriods,
+            periodsPlayedCount: currentPeriods.length,
           };
         } else if (pState.status === 'on_bench') {
           updatedPlayerStates[pId] = {
@@ -691,7 +727,7 @@ export function useSoccerStore() {
         playerId: isUs ? playerId : undefined,
         description: isUs 
           ? (player ? `GOAL! Scored by ${player.name} (#${player.number})!` : `GOAL! Scored for ${team?.name || 'our team'}!`)
-          : `Opponent scored a goal (${g.opponentName}).`,
+          : `Opponent scored a point (${g.opponentName}).`,
         timestamp: Date.now(),
       };
 
@@ -733,7 +769,7 @@ export function useSoccerStore() {
               matchSecond: Math.floor(prev.activeGame.totalElapsedSeconds),
               period: prev.activeGame.currentPeriod,
               type: 'goal',
-              description: `Opponent scored a goal (${prev.activeGame.opponentName}).`,
+              description: `Opponent scored a point (${prev.activeGame.opponentName}).`,
               timestamp: Date.now(),
             }
           ]
@@ -1140,6 +1176,22 @@ export function useSoccerStore() {
       const nextPeriod = g.currentPeriod + 1;
       const isFinished = nextPeriod > g.periodsTotal;
 
+      // Synchronize period credit for players who played while clock ran or if ending during an active period
+      const updatedPlayerStates = { ...g.playerStates };
+      Object.keys(updatedPlayerStates).forEach(pid => {
+        const ps = updatedPlayerStates[pid];
+        const periods = ps.periodsPlayed ? [...ps.periodsPlayed] : [];
+        // If clock ran during this period (>0s elapsed in this period) and player was on court/field, ensure credited
+        if (ps.status === 'on_field' && g.elapsedPeriodSeconds > 0 && !periods.includes(g.currentPeriod)) {
+          periods.push(g.currentPeriod);
+        }
+        updatedPlayerStates[pid] = {
+          ...ps,
+          periodsPlayed: periods,
+          periodsPlayedCount: periods.length,
+        };
+      });
+
       const event: MatchEvent = {
         id: 'evt-period-' + Date.now(),
         gameId: g.id,
@@ -1152,6 +1204,7 @@ export function useSoccerStore() {
 
       const updatedGame: Game = {
         ...g,
+        playerStates: updatedPlayerStates,
         currentPeriod: isFinished ? g.currentPeriod : nextPeriod,
         elapsedPeriodSeconds: 0,
         status: isFinished ? 'finished' : 'period_break',
@@ -1170,8 +1223,26 @@ export function useSoccerStore() {
     let finishedGame: Game | null = null;
     setState(prev => {
       if (!prev.activeGame) return prev;
+      const g = prev.activeGame;
+      
+      // Ensure any player on court/field while clock was running in the active period has it recorded
+      const finalStates = { ...g.playerStates };
+      Object.keys(finalStates).forEach(pid => {
+        const ps = finalStates[pid];
+        const periods = ps.periodsPlayed ? [...ps.periodsPlayed] : [];
+        if (ps.status === 'on_field' && g.elapsedPeriodSeconds > 0 && !periods.includes(g.currentPeriod)) {
+          periods.push(g.currentPeriod);
+        }
+        finalStates[pid] = {
+          ...ps,
+          periodsPlayed: periods,
+          periodsPlayedCount: periods.length,
+        };
+      });
+
       finishedGame = {
-        ...prev.activeGame,
+        ...g,
+        playerStates: finalStates,
         status: 'finished',
       };
       return {

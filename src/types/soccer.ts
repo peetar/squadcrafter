@@ -1,10 +1,13 @@
-export type PositionCategory = 'GK' | 'DEF' | 'MID' | 'FWD';
+import { SportType, TimeTrackingMode, ClockDirection, PlaymakerAttribute } from './sport';
+
+export type PositionCategory = 'GK' | 'DEF' | 'MID' | 'FWD' | 'GUARD' | 'WING' | 'POST' | 'CENTER';
 
 export type SpecificRole = 
   | 'GK' 
   | 'CB' | 'LB' | 'RB' | 'LWB' | 'RWB' 
   | 'CDM' | 'CM' | 'CAM' | 'LM' | 'RM' 
-  | 'LW' | 'RW' | 'ST' | 'CF';
+  | 'LW' | 'RW' | 'ST' | 'CF'
+  | 'PG' | 'SG' | 'SF' | 'PF' | 'C';
 
 export interface Player {
   id: string;
@@ -14,6 +17,8 @@ export interface Player {
   skillLevel: number; // 1 to 10 (Strictly hidden from game/pitch screens!)
   preferredPositions: PositionCategory[];
   canPlayGK: boolean;
+  isStarter?: boolean;
+  playmakerAttributes?: PlaymakerAttribute[];
   notes?: string;
 }
 
@@ -32,6 +37,8 @@ export interface PlayerMatchState {
   totalFieldSeconds: number;
   totalBenchSeconds: number;
   currentStintSeconds: number; // Duration of current continuous stint on field or bench
+  periodsPlayedCount?: number; // Number of periods played in
+  periodsPlayed?: number[];    // Unique period numbers the player actually played in (e.g. [1, 2])
   isTired: boolean;
   goals: number;
   tacticalOverride?: TacticalOverride;
@@ -85,7 +92,11 @@ export interface Game {
   teamId: string;
   opponentName: string;
   date: string;
-  formatPlayerCount: number; // 7, 9, 11
+  sport?: SportType;
+  timeTrackingMode?: TimeTrackingMode;
+  clockDirection?: ClockDirection;
+  warnMissingPlaymakers?: boolean;
+  formatPlayerCount: number; // 5, 7, 9, 11
   formationId: string;
   subMode: SubstitutionMode;
   cleanGoalieSwaps: boolean; // Keep GK locked during outfield rotations
@@ -105,7 +116,12 @@ export interface Game {
 export interface Team {
   id: string;
   name: string;
-  defaultPlayerCount: number; // 7, 9, 11
+  sport?: SportType;
+  timeTrackingMode?: TimeTrackingMode;
+  clockDirection?: ClockDirection;
+  useStarters?: boolean;
+  warnMissingPlaymakers?: boolean;
+  defaultPlayerCount: number; // 5, 7, 9, 11
   primaryColor: string;
   secondaryColor: string;
   players: Player[];

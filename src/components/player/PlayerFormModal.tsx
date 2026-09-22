@@ -1,28 +1,47 @@
 import React, { useState } from 'react';
 import { Player, PositionCategory } from '../../types/soccer';
-import { X, ShieldAlert, Check, User, Hash, Star } from 'lucide-react';
+import { SportType, PlaymakerAttribute, PLAYMAKER_ATTRIBUTES } from '../../types/sport';
+import { X, ShieldAlert, Check, Star, Award } from 'lucide-react';
 
 interface PlayerFormModalProps {
   player?: Player | null;
   teamId: string;
+  sport?: SportType;
   onClose: () => void;
   onSave: (playerData: Omit<Player, 'id' | 'teamId'> & { id?: string }) => void;
 }
 
 export const PlayerFormModal: React.FC<PlayerFormModalProps> = ({
   player,
-  teamId,
+  sport = 'soccer',
   onClose,
   onSave,
 }) => {
+  const isBasketball = sport === 'basketball';
+  const defaultPosition: PositionCategory = isBasketball ? 'GUARD' : 'MID';
+
   const [name, setName] = useState(player?.name || '');
   const [number, setNumber] = useState<number | ''>(player?.number ?? 10);
   const [skillLevel, setSkillLevel] = useState<number>(player?.skillLevel ?? 7);
   const [preferredPositions, setPreferredPositions] = useState<PositionCategory[]>(
-    player?.preferredPositions || ['MID']
+    player?.preferredPositions && player.preferredPositions.length > 0
+      ? player.preferredPositions
+      : [defaultPosition]
   );
   const [canPlayGK, setCanPlayGK] = useState<boolean>(player?.canPlayGK ?? false);
+  const [isStarter, setIsStarter] = useState<boolean>(player?.isStarter ?? false);
+  const [playmakerAttributes, setPlaymakerAttributes] = useState<PlaymakerAttribute[]>(
+    player?.playmakerAttributes || []
+  );
   const [notes, setNotes] = useState(player?.notes || '');
+
+  const categories: PositionCategory[] = isBasketball 
+    ? ['GUARD', 'WING', 'POST'] 
+    : ['GK', 'DEF', 'MID', 'FWD'];
+
+  const availableAttributes: PlaymakerAttribute[] = isBasketball
+    ? ['shooter', 'ball_handler', 'stopper', 'rebounder']
+    : ['stopper', 'scorer', 'ball_handler'];
 
   const togglePosition = (pos: PositionCategory) => {
     if (preferredPositions.includes(pos)) {
@@ -31,6 +50,14 @@ export const PlayerFormModal: React.FC<PlayerFormModalProps> = ({
       }
     } else {
       setPreferredPositions([...preferredPositions, pos]);
+    }
+  };
+
+  const toggleAttribute = (attr: PlaymakerAttribute) => {
+    if (playmakerAttributes.includes(attr)) {
+      setPlaymakerAttributes(playmakerAttributes.filter(a => a !== attr));
+    } else {
+      setPlaymakerAttributes([...playmakerAttributes, attr]);
     }
   };
 
@@ -44,13 +71,13 @@ export const PlayerFormModal: React.FC<PlayerFormModalProps> = ({
       number: Number(number) || 0,
       skillLevel,
       preferredPositions,
-      canPlayGK: canPlayGK || preferredPositions.includes('GK'),
+      canPlayGK: !isBasketball && (canPlayGK || preferredPositions.includes('GK')),
+      isStarter,
+      playmakerAttributes,
       notes: notes.trim(),
     });
     onClose();
   };
-
-  const categories: PositionCategory[] = ['GK', 'DEF', 'MID', 'FWD'];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-3">
@@ -60,8 +87,9 @@ export const PlayerFormModal: React.FC<PlayerFormModalProps> = ({
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-slate-800">
-          <h3 className="font-extrabold text-base text-white">
-            {player ? 'Edit Player' : 'Add New Player'}
+          <h3 className="font-extrabold text-base text-white flex items-center gap-2">
+            <span>{isBasketball ? '🏀' : '⚽'}</span>
+            <span>{player ? 'Edit Player' : 'Add New Player'}</span>
           </h3>
           <button
             onClick={onClose}
@@ -105,7 +133,69 @@ export const PlayerFormModal: React.FC<PlayerFormModalProps> = ({
             </div>
           </div>
 
-          {/* Coach Skill Rating (1-10) - Strictly Hidden Everywhere Else! */}
+          {/* Starter Designation Toggle */}
+          <div className="flex items-center justify-between p-3 bg-slate-950/80 rounded-xl border border-amber-500/30">
+            <div>
+              <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                <span>⭐</span>
+                <span>Designated Starter</span>
+              </span>
+              <p className="text-[11px] text-slate-400">
+                Priority for Period 1 starting lineup
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsStarter(!isStarter)}
+              className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 ${
+                isStarter ? 'bg-amber-500' : 'bg-slate-700'
+              }`}
+            >
+              <span
+                className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                  isStarter ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Playmaker Attributes */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+              <Award className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Playmaker Attributes</span>
+            </label>
+            <p className="text-[11px] text-slate-400">
+              Used to balance the lineup and warn when essential roles are missing.
+            </p>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              {availableAttributes.map(attrKey => {
+                const meta = PLAYMAKER_ATTRIBUTES[attrKey];
+                const isSelected = playmakerAttributes.includes(attrKey);
+                return (
+                  <button
+                    key={attrKey}
+                    type="button"
+                    onClick={() => toggleAttribute(attrKey)}
+                    className={`flex items-center gap-2 p-2 rounded-xl text-xs font-bold border transition text-left ${
+                      isSelected
+                        ? 'bg-indigo-950/80 border-indigo-500 text-indigo-200 shadow-sm'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="text-base">{meta.icon}</span>
+                    <div className="min-w-0">
+                      <div className="leading-tight">{meta.label}</div>
+                      <div className="text-[9px] font-normal text-slate-400 truncate">{meta.shortLabel}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Coach Skill Rating (1-10) */}
           <div className="bg-slate-950/80 border border-amber-500/30 rounded-2xl p-3.5 space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
@@ -117,11 +207,10 @@ export const PlayerFormModal: React.FC<PlayerFormModalProps> = ({
               </span>
             </div>
 
-            {/* Privacy Alert Banner */}
             <div className="flex items-start gap-2 bg-amber-950/40 border border-amber-900/60 rounded-xl p-2 text-[11px] text-amber-300/90 leading-tight">
               <ShieldAlert className="w-4 h-4 flex-shrink-0 text-amber-400 mt-0.5" />
               <span>
-                <strong>Coach Privacy:</strong> This rating is strictly private and is only visible here on this edit screen. It is never displayed on pitch or game screens so players will not see it.
+                <strong>Coach Privacy:</strong> Strictly private and only visible here. Never displayed during games.
               </span>
             </div>
 
@@ -144,9 +233,9 @@ export const PlayerFormModal: React.FC<PlayerFormModalProps> = ({
           {/* Preferred Positions */}
           <div>
             <label className="block text-xs font-bold text-slate-300 mb-1.5">
-              Preferred Positions (Select 1 or more)
+              Preferred Positions
             </label>
-            <div className="grid grid-cols-4 gap-2">
+            <div className={`grid ${categories.length === 3 ? 'grid-cols-3' : 'grid-cols-4'} gap-2`}>
               {categories.map(cat => {
                 const isSelected = preferredPositions.includes(cat);
                 return (
@@ -167,29 +256,31 @@ export const PlayerFormModal: React.FC<PlayerFormModalProps> = ({
             </div>
           </div>
 
-          {/* Plays Goalie Toggle */}
-          <div className="flex items-center justify-between p-3 bg-slate-950/60 rounded-xl border border-slate-800">
-            <div>
-              <span className="text-xs font-bold text-white">Can Play Goalkeeper?</span>
-              <p className="text-[11px] text-slate-400">
-                Eligible for GK position during lineup generation
-              </p>
-            </div>
+          {/* Plays Goalie Toggle (Soccer only) */}
+          {!isBasketball && (
+            <div className="flex items-center justify-between p-3 bg-slate-950/60 rounded-xl border border-slate-800">
+              <div>
+                <span className="text-xs font-bold text-white">Can Play Goalkeeper?</span>
+                <p className="text-[11px] text-slate-400">
+                  Eligible for GK position during lineup generation
+                </p>
+              </div>
 
-            <button
-              type="button"
-              onClick={() => setCanPlayGK(!canPlayGK)}
-              className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 ${
-                canPlayGK || preferredPositions.includes('GK') ? 'bg-amber-500' : 'bg-slate-700'
-              }`}
-            >
-              <span
-                className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                  canPlayGK || preferredPositions.includes('GK') ? 'translate-x-5' : 'translate-x-0'
+              <button
+                type="button"
+                onClick={() => setCanPlayGK(!canPlayGK)}
+                className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 ${
+                  canPlayGK || preferredPositions.includes('GK') ? 'bg-amber-500' : 'bg-slate-700'
                 }`}
-              />
-            </button>
-          </div>
+              >
+                <span
+                  className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                    canPlayGK || preferredPositions.includes('GK') ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          )}
 
           {/* Notes */}
           <div>
@@ -200,7 +291,7 @@ export const PlayerFormModal: React.FC<PlayerFormModalProps> = ({
               type="text"
               value={notes}
               onChange={e => setNotes(e.target.value)}
-              placeholder="e.g. Strong left foot, wants to try striker"
+              placeholder="e.g. Reliable shooter, aggressive rebounder"
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
             />
           </div>

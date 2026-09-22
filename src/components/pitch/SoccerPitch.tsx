@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Formation, Game, Player } from '../../types/soccer';
 import { PlayerNode } from './PlayerNode';
-import { formatPlayerMinutesRatio } from '../../utils/celebration';
-import { Users, Shuffle, AlertCircle, ArrowLeftRight, CheckCircle2, ArrowDownUp, FastForward, Flag, ChevronLeft, ChevronRight } from 'lucide-react';
+import { formatPlayerPlaytimeRatio } from '../../utils/celebration';
+import { validateLineupBalance } from '../../services/balanceValidator';
+import { Users, Shuffle, AlertCircle, AlertTriangle, ArrowLeftRight, CheckCircle2, ArrowDownUp, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface SoccerPitchProps {
   game: Game;
@@ -44,8 +45,6 @@ export const SoccerPitch: React.FC<SoccerPitchProps> = ({
   onQueueSub,
   onSwapPositions,
   onDirectAssignSlot,
-  onAdvancePeriod,
-  onEndGame,
 }) => {
   const [dragSession, setDragSession] = useState<DragSession | null>(null);
   const [hoveredTarget, setHoveredTarget] = useState<DropTarget | null>(null);
@@ -293,6 +292,15 @@ export const SoccerPitch: React.FC<SoccerPitchProps> = ({
     };
   }, [dragSession, hoveredTarget, onPlayerTap, onQueueSub, onSwapPositions, onDirectAssignSlot, players]);
 
+  // Lineup Balance Warnings
+  const balanceWarnings = validateLineupBalance(
+    'soccer',
+    players,
+    formation,
+    game.playerStates,
+    game.warnMissingPlaymakers ?? true
+  );
+
   return (
     <div className="flex flex-col flex-1 min-h-full max-w-lg mx-auto w-full pb-28 relative touch-none">
       {/* Dynamic Feedback Toast for Drag & Drop Swaps */}
@@ -307,6 +315,19 @@ export const SoccerPitch: React.FC<SoccerPitchProps> = ({
         </div>
       )}
 
+      {/* Lineup Balance Warnings Banner */}
+      {balanceWarnings.length > 0 && (
+        <div className="bg-amber-950/80 border-b border-amber-800/80 px-3 py-1.5 text-amber-200 text-xs font-semibold flex items-center justify-between gap-2 z-20">
+          <div className="flex items-center gap-1.5 truncate">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 animate-pulse" />
+            <span className="truncate">{balanceWarnings.map(w => w.message).join(' • ')}</span>
+          </div>
+          <span className="text-[10px] text-amber-400/80 font-mono shrink-0 hidden sm:inline">
+            Tap sub to balance
+          </span>
+        </div>
+      )}
+
       {/* Pitch Quick Bar */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900/80 border-b border-slate-800 text-xs">
         <div className="flex items-center gap-1.5 font-medium text-slate-300">
@@ -318,38 +339,6 @@ export const SoccerPitch: React.FC<SoccerPitchProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 flex-wrap">
-          {/* Quick Period Advance Button */}
-          {onAdvancePeriod && game.currentPeriod < game.periodsTotal && (
-            <button
-              onClick={onAdvancePeriod}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold shadow-sm transition active:scale-95 ${
-                game.elapsedPeriodSeconds >= game.periodDurationMinutes * 60
-                  ? 'bg-amber-500 text-slate-950 font-black animate-pulse shadow-amber-500/50'
-                  : 'bg-blue-600/40 text-blue-300 border border-blue-500/50 hover:bg-blue-600/60'
-              }`}
-              title={`Advance to ${game.periodsTotal === 4 ? `Q${game.currentPeriod + 1}` : '2nd Half'}`}
-            >
-              <FastForward className="w-3 h-3 fill-current" />
-              <span>{game.periodsTotal === 4 ? `Q${game.currentPeriod + 1}` : '2nd Half'}</span>
-            </button>
-          )}
-
-          {/* Quick End Game Button */}
-          {onEndGame && (
-            <button
-              onClick={() => {
-                if (confirm('End match now and view fair-play summary?')) {
-                  onEndGame();
-                }
-              }}
-              className="flex items-center gap-1 px-2 py-1 bg-slate-800/80 hover:bg-red-950/80 hover:text-red-400 border border-slate-700 hover:border-red-800/80 text-slate-300 rounded-lg text-[11px] font-bold active:scale-95 transition"
-              title="End Match"
-            >
-              <Flag className="w-3 h-3" />
-              <span className="hidden sm:inline">End Match</span>
-            </button>
-          )}
-
           {unassignedSlots.length > 0 && (
             <button
               onClick={onOpenAutoFill}
@@ -543,6 +532,8 @@ export const SoccerPitch: React.FC<SoccerPitchProps> = ({
               role={slot.role}
               x={slot.x}
               y={slot.y}
+              timeTrackingMode={game.timeTrackingMode}
+              currentPeriod={game.currentPeriod}
               queuedSub={queued}
               incomingPlayer={incomingPlayer}
               isHoveredTarget={isHovered}
@@ -628,15 +619,18 @@ export const SoccerPitch: React.FC<SoccerPitchProps> = ({
                       {bp.number}
                     </div>
                     <div>
-                      <div className="text-xs font-bold truncate max-w-[80px] leading-tight">
-                        {bp.name.split(' ')[0]}
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs font-bold truncate max-w-[70px] leading-tight">
+                          {bp.name.split(' ')[0]}
+                        </span>
+                        {bp.isStarter && <span className="text-[10px]" title="Starter">⭐</span>}
                       </div>
                       <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1">
                         <span 
-                          title={`Played ${Math.floor((bState?.totalFieldSeconds || 0) / 60)}m / Total ${Math.floor(((bState?.totalFieldSeconds || 0) + (bState?.totalBenchSeconds || 0)) / 60)}m (Sat: ${sitMinutes}m)`}
+                          title={`Played ${game.timeTrackingMode === 'periods' ? `${(bState?.periodsPlayedCount || 0) + (bState?.status === 'on_field' ? 1 : 0)}/${game.currentPeriod} periods` : `${Math.floor((bState?.totalFieldSeconds || 0) / 60)}m / Total ${Math.floor(((bState?.totalFieldSeconds || 0) + (bState?.totalBenchSeconds || 0)) / 60)}m`}`}
                           className="font-bold text-slate-300"
                         >
-                          {formatPlayerMinutesRatio(bState)}
+                          {formatPlayerPlaytimeRatio(bState, game.timeTrackingMode, game.currentPeriod)}
                         </span>
                         {bp.canPlayGK && <span className="text-[9px] text-amber-400 font-bold">GK</span>}
                       </div>

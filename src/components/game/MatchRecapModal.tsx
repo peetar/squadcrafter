@@ -23,6 +23,7 @@ interface MatchRecapModalProps {
   team: Team | null;
   players: Player[];
   isNewlyFinished?: boolean;
+  onUpdateScore?: (side: 'us' | 'them', delta: number) => void;
 }
 
 export const MatchRecapModal: React.FC<MatchRecapModalProps> = ({
@@ -32,16 +33,39 @@ export const MatchRecapModal: React.FC<MatchRecapModalProps> = ({
   team,
   players,
   isNewlyFinished = false,
+  onUpdateScore,
 }) => {
   const [copiedSummary, setCopiedSummary] = useState(false);
+  const [copiedTimeline, setCopiedTimeline] = useState(false);
+  const [localScoreUs, setLocalScoreUs] = useState(game?.scoreUs || 0);
+  const [localScoreThem, setLocalScoreThem] = useState(game?.scoreThem || 0);
+
+  useEffect(() => {
+    if (game) {
+      setLocalScoreUs(game.scoreUs);
+      setLocalScoreThem(game.scoreThem);
+    }
+  }, [game?.scoreUs, game?.scoreThem]);
+
+  const handleAdjust = (side: 'us' | 'them', delta: number) => {
+    if (side === 'us') {
+      const next = Math.max(0, localScoreUs + delta);
+      setLocalScoreUs(next);
+      onUpdateScore?.('us', delta);
+    } else {
+      const next = Math.max(0, localScoreThem + delta);
+      setLocalScoreThem(next);
+      onUpdateScore?.('them', delta);
+    }
+  };
 
   useEffect(() => {
     if (isOpen && isNewlyFinished && game) {
-      if (game.scoreUs >= game.scoreThem) {
+      if (localScoreUs >= localScoreThem) {
         celebrateGoal();
       }
     }
-  }, [isOpen, isNewlyFinished, game]);
+  }, [isOpen, isNewlyFinished, game, localScoreUs, localScoreThem]);
 
   if (!isOpen || !game || !team) return null;
 
@@ -58,12 +82,20 @@ export const MatchRecapModal: React.FC<MatchRecapModalProps> = ({
     .filter(item => item.goals > 0)
     .sort((a, b) => b.goals - a.goals);
 
+  const isPeriodTracking = game.timeTrackingMode === 'periods';
+  const effectivePeriodsTotal = Math.max(1, game.periodsTotal || 1);
+
   // Playing time data
   const playingTimeData = players.map(p => {
     const s = game.playerStates[p.id];
     const fieldSec = s?.totalFieldSeconds || 0;
     const benchSec = s?.totalBenchSeconds || 0;
-    const pct = Math.round((fieldSec / totalMatchSeconds) * 100);
+    const periodsPlayed = s?.periodsPlayed ? s.periodsPlayed.length : (s?.periodsPlayedCount || 0);
+
+    const pct = isPeriodTracking
+      ? Math.round((periodsPlayed / effectivePeriodsTotal) * 100)
+      : Math.round((fieldSec / totalMatchSeconds) * 100);
+
     const isAbsent = s?.status === 'absent';
 
     return {
@@ -72,19 +104,20 @@ export const MatchRecapModal: React.FC<MatchRecapModalProps> = ({
       benchSeconds: benchSec,
       fieldMinutes: Math.round(fieldSec / 60),
       benchMinutes: Math.round(benchSec / 60),
+      periodsPlayed,
       percent: Math.min(pct, 100),
       isGoalie: p.canPlayGK,
       goals: s?.goals || 0,
       isAbsent,
     };
-  }).sort((a, b) => b.fieldSeconds - a.fieldSeconds);
+  }).sort((a, b) => isPeriodTracking ? b.periodsPlayed - a.periodsPlayed : b.fieldSeconds - a.fieldSeconds);
 
   // Fair Play stats (only evaluate players who were active / not absent)
   const activePlayingData = playingTimeData.filter(d => !d.isAbsent);
   const minPlayingTimePct = activePlayingData.length > 0 
     ? Math.min(...activePlayingData.map(d => d.percent)) 
     : 0;
-  const allMetFairPlay = minPlayingTimePct >= 35 || totalMatchSeconds < 300;
+  const allMetFairPlay = minPlayingTimePct >= 35 || (isPeriodTracking ? true : totalMatchSeconds < 300);
 
   // Date formatting
   const matchDateStr = game.date 
@@ -101,19 +134,21 @@ export const MatchRecapModal: React.FC<MatchRecapModalProps> = ({
         year: 'numeric',
       });
 
+  const isBasketball = game.sport === 'basketball' || team.sport === 'basketball';
+
   // Copy parent summary text
   const handleCopySummary = async () => {
-    const goalsText = goalScorers.length > 0
+    const scoresText = goalScorers.length > 0
       ? goalScorers.map(g => `${g.player.name.split(' ')[0]}${g.goals > 1 ? ` (${g.goals})` : ''}`).join(', ')
       : 'None';
 
     const text = [
-      `⚽ SquadCrafter Match Recap`,
+      `${isBasketball ? '🏀' : '⚽'} SquadCrafter Match Recap`,
       `${team.name} ${game.scoreUs} - ${game.scoreThem} ${game.opponentName}`,
       `Date: ${matchDateStr}`,
-      `Outcome: ${isWin ? 'Victory 🏆' : isDraw ? 'Draw 🤝' : 'Hard-fought match ⚽'}`,
-      `Goals: ${goalsText}`,
-      `Match Length: ${totalMatchMinutes}m (${game.formatPlayerCount}v${game.formatPlayerCount})`,
+      `Outcome: ${isWin ? 'Victory 🏆' : isDraw ? 'Draw 🤝' : isBasketball ? 'Hard-fought game 🏀' : 'Hard-fought match ⚽'}`,
+      `${isBasketball ? 'Points' : 'Goals'}: ${scoresText}`,
+      `Match Length: ${isPeriodTracking ? `${game.periodsTotal} Periods` : `${totalMatchMinutes}m`} (${game.formatPlayerCount}v${game.formatPlayerCount})`,
       `Great teamwork and sportsmanship today!`,
     ].join('\n');
 
@@ -178,9 +213,9 @@ export const MatchRecapModal: React.FC<MatchRecapModalProps> = ({
               </div>
 
               <div className="flex items-center gap-2 font-mono text-3xl font-black bg-slate-900 px-3 py-1.5 rounded-2xl border border-slate-800 shadow-inner">
-                <span className={isWin ? 'text-emerald-400' : 'text-white'}>{game.scoreUs}</span>
+                <span className={localScoreUs > localScoreThem ? 'text-emerald-400' : 'text-white'}>{localScoreUs}</span>
                 <span className="text-slate-600 text-xl">-</span>
-                <span className={isLoss ? 'text-red-400' : 'text-slate-300'}>{game.scoreThem}</span>
+                <span className={localScoreUs < localScoreThem ? 'text-red-400' : 'text-slate-300'}>{localScoreThem}</span>
               </div>
 
               <div className="text-left flex-1 min-w-0">
@@ -191,13 +226,77 @@ export const MatchRecapModal: React.FC<MatchRecapModalProps> = ({
               </div>
             </div>
 
+            {/* Quick Confirm Final Score Buttons (+10, +1, -1) */}
+            <div className="bg-slate-900/80 p-2 rounded-xl border border-slate-800/80 mt-2">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                Confirm / Adjust Final Score
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs font-bold">
+                {/* Us controls */}
+                <div className="flex items-center justify-between gap-1 bg-slate-950 p-1.5 rounded-lg border border-slate-800">
+                  <span className="text-[10px] text-emerald-400 font-mono font-bold">Us</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleAdjust('us', -1)}
+                      className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 active:scale-95 transition"
+                    >
+                      -1
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAdjust('us', 1)}
+                      className="px-1.5 py-0.5 rounded bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 active:scale-95 transition"
+                    >
+                      +1
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAdjust('us', 10)}
+                      className="px-1.5 py-0.5 rounded bg-emerald-900 hover:bg-emerald-800 text-emerald-200 border border-emerald-700 active:scale-95 transition font-black"
+                    >
+                      +10
+                    </button>
+                  </div>
+                </div>
+
+                {/* Opponent controls */}
+                <div className="flex items-center justify-between gap-1 bg-slate-950 p-1.5 rounded-lg border border-slate-800">
+                  <span className="text-[10px] text-slate-400 font-mono font-bold">Them</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleAdjust('them', -1)}
+                      className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 active:scale-95 transition"
+                    >
+                      -1
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAdjust('them', 1)}
+                      className="px-1.5 py-0.5 rounded bg-red-950 hover:bg-red-900 text-red-300 border border-red-800 active:scale-95 transition"
+                    >
+                      +1
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAdjust('them', 10)}
+                      className="px-1.5 py-0.5 rounded bg-red-900 hover:bg-red-800 text-red-200 border border-red-700 active:scale-95 transition font-black"
+                    >
+                      +10
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Quick Match Specs */}
             <div className="flex items-center justify-center gap-2 pt-1 text-[11px] text-slate-400 font-medium">
-              <span>{totalMatchMinutes} min played</span>
+              <span>{game.timeTrackingMode === 'periods' ? `${game.periodsTotal} Periods played` : `${totalMatchMinutes} min played`}</span>
               <span>•</span>
               <span>{game.formatPlayerCount}v{game.formatPlayerCount}</span>
               <span>•</span>
-              <span>{game.periodsTotal} Periods</span>
+              <span>{game.sport === 'basketball' ? '🏀 Basketball' : '⚽ Soccer'}</span>
             </div>
           </div>
 
@@ -270,6 +369,10 @@ export const MatchRecapModal: React.FC<MatchRecapModalProps> = ({
                     <div className="font-mono text-xs flex items-center gap-2">
                       {item.isAbsent && item.fieldMinutes === 0 && item.benchMinutes === 0 ? (
                         <span className="text-slate-500 text-[11px]">Unavailable</span>
+                      ) : game.timeTrackingMode === 'periods' ? (
+                        <span className="text-emerald-400 font-bold font-mono">
+                          {game.playerStates[item.player.id]?.periodsPlayedCount || 0}/{game.periodsTotal} periods
+                        </span>
                       ) : (
                         <>
                           <span className="text-emerald-400 font-bold">{item.fieldMinutes}m</span>
@@ -299,20 +402,42 @@ export const MatchRecapModal: React.FC<MatchRecapModalProps> = ({
             </div>
           </div>
 
-          {/* Match Timeline Log */}
+          {/* Match Timeline Log (Selectable & Copyable) */}
           {game.events.length > 0 && (
-            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-3 space-y-1.5">
-              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <History className="w-3.5 h-3.5" />
-                <span>Match Timeline ({game.events.length} events)</span>
+            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-3 space-y-1.5 select-text">
+              <div className="flex items-center justify-between">
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 select-none">
+                  <History className="w-3.5 h-3.5" />
+                  <span>Match Timeline ({game.events.length} events)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const text = game.events
+                      .map(e => `[${formatTime(e.matchSecond)}] ${e.description}`)
+                      .join('\n');
+                    try {
+                      await navigator.clipboard.writeText(text);
+                      setCopiedTimeline(true);
+                      setTimeout(() => setCopiedTimeline(false), 2000);
+                    } catch {
+                      window.prompt('Match Timeline:', text);
+                    }
+                  }}
+                  className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1 select-none active:scale-95 transition"
+                  title="Copy full timeline events"
+                >
+                  {copiedTimeline ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                  <span>{copiedTimeline ? 'Copied' : 'Copy Log'}</span>
+                </button>
               </div>
-              <div className="max-h-32 overflow-y-auto space-y-1 pr-1 text-xs no-scrollbar">
+              <div className="max-h-32 overflow-y-auto space-y-1 pr-1 text-xs no-scrollbar select-text cursor-text">
                 {game.events.map(evt => (
-                  <div key={evt.id} className="flex items-start gap-2 py-0.5 text-slate-300">
-                    <span className="font-mono font-bold text-[10px] text-slate-400 w-9 shrink-0 pt-0.5">
+                  <div key={evt.id} className="flex items-start gap-2 py-0.5 text-slate-300 select-text">
+                    <span className="font-mono font-bold text-[10px] text-slate-400 w-9 shrink-0 pt-0.5 select-text">
                       {formatTime(evt.matchSecond)}
                     </span>
-                    <span className="text-slate-200 text-xs leading-tight">{evt.description}</span>
+                    <span className="text-slate-200 text-xs leading-tight select-text">{evt.description}</span>
                   </div>
                 ))}
               </div>

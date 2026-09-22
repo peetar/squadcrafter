@@ -49,10 +49,22 @@ export function formatMinutes(seconds: number): string {
   return `${m}m`;
 }
 
-export function formatPlayerMinutesRatio(state?: { totalFieldSeconds?: number; totalBenchSeconds?: number; status?: string } | null): string {
+export function formatPlayerPlaytimeRatio(
+  state?: { totalFieldSeconds?: number; totalBenchSeconds?: number; status?: string; periodsPlayedCount?: number; periodsPlayed?: number[] } | null,
+  timeTrackingMode: 'minutes' | 'periods' = 'minutes',
+  currentPeriod = 1
+): string {
   if (!state) return '00/00';
+  if (timeTrackingMode === 'periods') {
+    const played = state.periodsPlayed ? state.periodsPlayed.length : (state.periodsPlayedCount || 0);
+    const total = Math.max(1, currentPeriod);
+    return `${played.toString().padStart(2, '0')}/${total.toString().padStart(2, '0')}`;
+  }
+
   const playedMins = Math.floor((state.totalFieldSeconds || 0) / 60);
   const totalMins = Math.floor(((state.totalFieldSeconds || 0) + (state.totalBenchSeconds || 0)) / 60);
   return `${playedMins.toString().padStart(2, '0')}/${totalMins.toString().padStart(2, '0')}`;
 }
+
+export const formatPlayerMinutesRatio = formatPlayerPlaytimeRatio;
 

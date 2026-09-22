@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Team } from '../../types/soccer';
+import { SportType, TimeTrackingMode, ClockDirection } from '../../types/sport';
 import { 
   Users2, 
   Plus, 
@@ -17,13 +18,26 @@ import {
   Share2,
   Smartphone,
   DownloadCloud,
-  Sparkles
+  Sparkles,
+  Clock,
+  Star,
+  AlertTriangle
 } from 'lucide-react';
 
 interface TeamSelectionScreenProps {
   teams: Team[];
   onSelectTeam: (teamId: string) => void;
-  onCreateTeam: (name: string, defaultPlayerCount: number, primaryColor?: string) => Team;
+  onCreateTeam: (
+    name: string, 
+    defaultPlayerCount: number, 
+    primaryColor?: string,
+    secondaryColor?: string,
+    sport?: SportType,
+    timeTrackingMode?: TimeTrackingMode,
+    clockDirection?: ClockDirection,
+    useStarters?: boolean,
+    warnMissingPlaymakers?: boolean
+  ) => Team;
   onDeleteTeam: (teamId: string) => void;
   onRestoreSampleData: () => void;
   onShareTeam?: (team: Team) => void;
@@ -53,8 +67,13 @@ export const TeamSelectionScreen: React.FC<TeamSelectionScreenProps> = ({
 }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [teamName, setTeamName] = useState('');
+  const [selectedSport, setSelectedSport] = useState<SportType>('soccer');
   const [playerCount, setPlayerCount] = useState<number>(7);
   const [selectedColor, setSelectedColor] = useState('#2563eb');
+  const [timeTrackingMode, setTimeTrackingMode] = useState<TimeTrackingMode>('minutes');
+  const [clockDirection, setClockDirection] = useState<ClockDirection>('countup');
+  const [useStarters, setUseStarters] = useState<boolean>(false);
+  const [warnMissingPlaymakers, setWarnMissingPlaymakers] = useState<boolean>(true);
   const [importedMessage, setImportedMessage] = useState<string | null>(null);
 
   const colors = [
@@ -69,10 +88,19 @@ export const TeamSelectionScreen: React.FC<TeamSelectionScreenProps> = ({
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!teamName.trim()) return;
-    const created = onCreateTeam(teamName.trim(), playerCount, selectedColor);
+    onCreateTeam(
+      teamName.trim(), 
+      playerCount, 
+      selectedColor,
+      '#facc15',
+      selectedSport,
+      timeTrackingMode,
+      clockDirection,
+      useStarters,
+      warnMissingPlaymakers
+    );
     setShowCreateModal(false);
     setTeamName('');
-    onSelectTeam(created.id);
   };
 
   // Export LocalStorage data as JSON file
@@ -178,10 +206,10 @@ export const TeamSelectionScreen: React.FC<TeamSelectionScreenProps> = ({
                 {/* Left: Avatar & Team Info */}
                 <div className="flex items-center gap-3.5 min-w-0">
                   <div
-                    className="w-12 h-12 rounded-2xl flex items-center justify-center text-lg font-black text-white shadow-md flex-shrink-0"
-                    style={{ backgroundColor: team.primaryColor || '#2563eb' }}
+                    className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black text-white shadow-md flex-shrink-0"
+                    style={{ backgroundColor: team.primaryColor || (team.sport === 'basketball' ? '#ea580c' : '#2563eb') }}
                   >
-                    {team.name.slice(0, 2).toUpperCase()}
+                    {team.sport === 'basketball' ? '🏀' : '⚽'}
                   </div>
 
                   <div className="min-w-0">
@@ -198,10 +226,16 @@ export const TeamSelectionScreen: React.FC<TeamSelectionScreenProps> = ({
 
                     <div className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
                       <span className="font-bold text-slate-300">
-                        {team.defaultPlayerCount}v{team.defaultPlayerCount} Format
+                        {team.sport === 'basketball' ? 'Basketball' : 'Soccer'} ({team.defaultPlayerCount}v{team.defaultPlayerCount})
                       </span>
                       <span>•</span>
                       <span>{team.players.length} Players</span>
+                      {team.timeTrackingMode === 'periods' && (
+                        <>
+                          <span>•</span>
+                          <span className="text-amber-400 text-[11px] font-semibold">Periods</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -367,7 +401,7 @@ export const TeamSelectionScreen: React.FC<TeamSelectionScreenProps> = ({
           >
             <h3 className="font-extrabold text-base text-white mb-4">Create New Team</h3>
             
-            <form onSubmit={handleCreateSubmit} className="space-y-4">
+            <form onSubmit={handleCreateSubmit} className="space-y-3.5 max-h-[75vh] overflow-y-auto pr-1">
               <div>
                 <label className="block text-xs font-bold text-slate-300 mb-1">
                   Team Name *
@@ -383,13 +417,55 @@ export const TeamSelectionScreen: React.FC<TeamSelectionScreenProps> = ({
                 />
               </div>
 
-              {/* Player Count on Field (Flexible) */}
+              {/* Sport Selector */}
               <div>
                 <label className="block text-xs font-bold text-slate-300 mb-1">
-                  Game Format (Players on Field) *
+                  Sport *
                 </label>
-                <div className="grid grid-cols-4 gap-2 mb-2">
-                  {[7, 9, 11].map(cnt => (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedSport('soccer');
+                      setPlayerCount(7);
+                      setClockDirection('countup');
+                    }}
+                    className={`py-2 px-3 rounded-xl text-xs font-extrabold border flex items-center justify-center gap-1.5 transition ${
+                      selectedSport === 'soccer'
+                        ? 'bg-emerald-600 border-emerald-400 text-white shadow-md'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="text-base">⚽</span>
+                    <span>Soccer</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedSport('basketball');
+                      setPlayerCount(5);
+                      setClockDirection('countdown');
+                    }}
+                    className={`py-2 px-3 rounded-xl text-xs font-extrabold border flex items-center justify-center gap-1.5 transition ${
+                      selectedSport === 'basketball'
+                        ? 'bg-amber-600 border-amber-400 text-white shadow-md'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="text-base">🏀</span>
+                    <span>Basketball</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Player Count on Field / Court */}
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">
+                  Format ({selectedSport === 'basketball' ? 'Court' : 'Field'} Players) *
+                </label>
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  {(selectedSport === 'basketball' ? [5, 3] : [7, 9, 11]).map(cnt => (
                     <button
                       key={cnt}
                       type="button"
@@ -403,17 +479,6 @@ export const TeamSelectionScreen: React.FC<TeamSelectionScreenProps> = ({
                       {cnt}v{cnt}
                     </button>
                   ))}
-                  <button
-                    type="button"
-                    onClick={() => setPlayerCount(5)}
-                    className={`py-2 rounded-xl text-xs font-bold border transition ${
-                      playerCount === 5
-                        ? 'bg-blue-600 border-blue-400 text-white shadow'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    5v5
-                  </button>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -426,7 +491,101 @@ export const TeamSelectionScreen: React.FC<TeamSelectionScreenProps> = ({
                     onChange={e => setPlayerCount(Number(e.target.value))}
                     className="w-16 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white font-mono text-center"
                   />
-                  <span className="text-[11px] text-slate-500">(flexible for tournaments)</span>
+                  <span className="text-[11px] text-slate-500">(flexible)</span>
+                </div>
+              </div>
+
+              {/* Playtime Tracking & Clock Direction */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                    Playtime Tracking
+                  </label>
+                  <div className="flex bg-slate-950 p-0.5 rounded-xl border border-slate-800 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setTimeTrackingMode('minutes')}
+                      className={`flex-1 py-1 rounded-lg font-bold transition ${
+                        timeTrackingMode === 'minutes' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Minutes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTimeTrackingMode('periods')}
+                      className={`flex-1 py-1 rounded-lg font-bold transition ${
+                        timeTrackingMode === 'periods' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Periods
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                    Clock Direction
+                  </label>
+                  <div className="flex bg-slate-950 p-0.5 rounded-xl border border-slate-800 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setClockDirection('countup')}
+                      className={`flex-1 py-1 rounded-lg font-bold transition ${
+                        clockDirection === 'countup' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Count Up
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setClockDirection('countdown')}
+                      className={`flex-1 py-1 rounded-lg font-bold transition ${
+                        clockDirection === 'countdown' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Down
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Starters & Playmaker Warnings Toggles */}
+              <div className="space-y-2 bg-slate-950/60 p-3 rounded-2xl border border-slate-800 text-xs">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-slate-200 flex items-center gap-1">
+                      <span>⭐</span> Use Starters?
+                    </span>
+                    <p className="text-[10px] text-slate-400">Force designated starters for initial lineup</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setUseStarters(!useStarters)}
+                    className={`w-9 h-5 rounded-full transition-colors relative flex items-center px-0.5 ${
+                      useStarters ? 'bg-amber-500' : 'bg-slate-700'
+                    }`}
+                  >
+                    <span className={`w-4 h-4 rounded-full bg-white transition-transform ${useStarters ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
+                  <div>
+                    <span className="font-bold text-slate-200 flex items-center gap-1">
+                      <span>⚠️</span> Playmaker Balance Warnings
+                    </span>
+                    <p className="text-[10px] text-slate-400">Alert if missing stoppers, scorers, or shooters</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setWarnMissingPlaymakers(!warnMissingPlaymakers)}
+                    className={`w-9 h-5 rounded-full transition-colors relative flex items-center px-0.5 ${
+                      warnMissingPlaymakers ? 'bg-emerald-500' : 'bg-slate-700'
+                    }`}
+                  >
+                    <span className={`w-4 h-4 rounded-full bg-white transition-transform ${warnMissingPlaymakers ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
                 </div>
               </div>
 
@@ -441,7 +600,7 @@ export const TeamSelectionScreen: React.FC<TeamSelectionScreenProps> = ({
                       key={c.hex}
                       type="button"
                       onClick={() => setSelectedColor(c.hex)}
-                      className={`w-8 h-8 rounded-xl transition-transform ${
+                      className={`w-7 h-7 rounded-xl transition-transform ${
                         selectedColor === c.hex ? 'scale-115 ring-2 ring-white shadow-lg' : 'hover:scale-105'
                       }`}
                       style={{ backgroundColor: c.hex }}
@@ -464,7 +623,7 @@ export const TeamSelectionScreen: React.FC<TeamSelectionScreenProps> = ({
                   type="submit"
                   className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow"
                 >
-                  Create & Open
+                  Create Team
                 </button>
               </div>
             </form>

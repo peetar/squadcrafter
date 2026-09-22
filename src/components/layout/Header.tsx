@@ -36,6 +36,7 @@ export const Header: React.FC<HeaderProps> = ({
   const { isFullscreen, toggleFullscreen } = useFullscreen();
 
   const isRunning = game?.status === 'running';
+  const isBasketball = (team?.sport === 'basketball') || (game?.sport === 'basketball');
 
   const periodLabel = game 
     ? (game.periodsTotal === 4 ? `Q${game.currentPeriod}` : (game.currentPeriod === 1 ? '1st Half' : '2nd Half'))
@@ -45,14 +46,20 @@ export const Header: React.FC<HeaderProps> = ({
     ? (game.periodsTotal === 4 ? `Q${game.currentPeriod + 1}` : '2nd Half')
     : '';
 
+  const displaySeconds = game
+    ? (game.clockDirection === 'countdown'
+        ? Math.max(0, game.periodDurationMinutes * 60 - game.elapsedPeriodSeconds)
+        : game.elapsedPeriodSeconds)
+    : 0;
+
   return (
     <header className="sticky top-0 z-30 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-2.5 sm:px-4 py-1.5 sm:py-2 text-white">
       <div className="max-w-5xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-2">
         {/* Brand & Team Info Row (with mobile utilities on right) */}
         <div className="flex items-center justify-between sm:justify-start gap-2 min-w-0 w-full sm:w-auto">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-600 flex items-center justify-center font-bold text-white shadow shrink-0 text-sm">
-              ⚽
+            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg ${isBasketball ? 'bg-amber-600' : 'bg-emerald-600'} flex items-center justify-center font-bold text-white shadow shrink-0 text-sm`}>
+              {isBasketball ? '🏀' : '⚽'}
             </div>
             
             {team ? (
@@ -96,17 +103,19 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Quick Utilities on Mobile (when game is active) */}
           {game && team && (
             <div className="flex sm:hidden items-center gap-1 shrink-0">
-              <button
-                onClick={onToggleCleanGoalie}
-                className={`p-1.5 rounded-lg text-xs font-medium border transition ${
-                  game.cleanGoalieSwaps 
-                    ? 'bg-blue-950/60 text-blue-400 border-blue-800/80' 
-                    : 'bg-slate-800/60 text-slate-400 border-slate-700 line-through'
-                }`}
-                title={game.cleanGoalieSwaps ? 'Clean Goalie Swaps: ON' : 'Clean Goalie Swaps: OFF'}
-              >
-                <Shield className="w-3.5 h-3.5" />
-              </button>
+              {!isBasketball && (
+                <button
+                  onClick={onToggleCleanGoalie}
+                  className={`p-1.5 rounded-lg text-xs font-medium border transition ${
+                    game.cleanGoalieSwaps 
+                      ? 'bg-blue-950/60 text-blue-400 border-blue-800/80' 
+                      : 'bg-slate-800/60 text-slate-400 border-slate-700 line-through'
+                  }`}
+                  title={game.cleanGoalieSwaps ? 'Clean Goalie Swaps: ON' : 'Clean Goalie Swaps: OFF'}
+                >
+                  <Shield className="w-3.5 h-3.5" />
+                </button>
+              )}
 
               <button
                 onClick={playRefereeWhistle}
@@ -131,10 +140,10 @@ export const Header: React.FC<HeaderProps> = ({
                       onEndGame();
                     }
                   }}
-                  className="px-1.5 py-1 bg-slate-800 hover:bg-red-950/80 text-slate-300 hover:text-red-400 border border-slate-700 active:scale-95 text-[10px] font-bold rounded-lg transition flex items-center gap-0.5"
+                  className="px-2 py-1 bg-slate-800 hover:bg-red-950/80 text-slate-300 hover:text-red-400 border border-slate-700 active:scale-95 text-xs font-bold rounded-lg transition flex items-center gap-1"
                   title="End Match"
                 >
-                  <Flag className="w-3 h-3" />
+                  <Flag className="w-3.5 h-3.5 text-red-400 fill-red-400/20" />
                   <span>End</span>
                 </button>
               )}
@@ -163,11 +172,15 @@ export const Header: React.FC<HeaderProps> = ({
               className={`p-1.5 rounded-lg font-bold flex items-center justify-center transition active:scale-95 shrink-0 ${
                 isRunning 
                   ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 hover:bg-amber-500/30' 
-                  : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-md shadow-emerald-900/40'
+                  : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-lg shadow-emerald-500/50 ring-2 ring-emerald-400/80 animate-pulse'
               }`}
-              title={isRunning ? 'Pause Game Clock' : 'Start Game Clock'}
+              title={isRunning ? 'Pause Game Clock' : 'Start / Resume Game Clock (Currently Paused)'}
             >
-              {isRunning ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current ml-0.5" />}
+              {isRunning ? (
+                <Pause className="w-3.5 h-3.5 fill-current" />
+              ) : (
+                <Play className="w-3.5 h-3.5 fill-current ml-0.5 animate-bounce" />
+              )}
             </button>
 
             {/* Scoreboard */}
@@ -185,8 +198,16 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
                 <span className="text-sm sm:text-base font-black px-0.5 min-w-[14px] text-center">{game.scoreUs}</span>
                 <button
-                  onClick={onOpenGoalScorerPicker}
-                  title={`Record goal for ${team.name}`}
+                  onClick={() => {
+                    if (isBasketball) {
+                      onAdjustScore?.('us', 1);
+                    } else if (onOpenGoalScorerPicker) {
+                      onOpenGoalScorerPicker();
+                    } else {
+                      onAdjustScore?.('us', 1);
+                    }
+                  }}
+                  title={isBasketball ? `Add point for ${team.name}` : `Record goal for ${team.name}`}
                   className="w-5 h-5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-black flex items-center justify-center text-xs active:scale-90 transition shrink-0"
                 >
                   +
@@ -209,7 +230,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="text-sm sm:text-base font-black text-slate-200 px-0.5 min-w-[14px] text-center">{game.scoreThem}</span>
                 <button 
                   onClick={onRegisterOpponentGoal}
-                  title={`Add opponent goal (${game.opponentName})`}
+                  title={`Add opponent score (${game.opponentName})`}
                   className="w-5 h-5 rounded bg-red-950/80 hover:bg-red-800 text-red-300 border border-red-700/60 flex items-center justify-center text-xs font-black active:scale-90 transition shrink-0"
                 >
                   +
@@ -220,15 +241,21 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Clock & Period */}
             <div className="border-l border-slate-800 pl-1 sm:pl-2 text-right shrink-0">
               <div className="font-mono text-xs font-bold text-slate-100 flex items-center justify-end gap-1">
-                {formatTime(game.elapsedPeriodSeconds)}
-                {isRunning && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />}
+                {formatTime(displaySeconds)}
+                {isRunning ? (
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
+                ) : (
+                  <span className="text-[9px] font-bold text-amber-400 bg-amber-950/80 border border-amber-500/50 px-1 py-0.2 rounded animate-pulse">
+                    PAUSED
+                  </span>
+                )}
               </div>
               <div className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">
                 {periodLabel}
               </div>
             </div>
 
-            {/* Advance Period Controls */}
+            {/* Advance Period Controls or End Match in Final Period */}
             {game.currentPeriod < game.periodsTotal && onAdvancePeriod ? (
               <div className="border-l border-slate-800 pl-1 sm:pl-1.5 shrink-0">
                 <button
@@ -238,6 +265,21 @@ export const Header: React.FC<HeaderProps> = ({
                 >
                   <FastForward className="w-3 h-3 fill-current" />
                   <span>{nextPeriodName}</span>
+                </button>
+              </div>
+            ) : onEndGame ? (
+              <div className="border-l border-slate-800 pl-1 sm:pl-1.5 shrink-0">
+                <button
+                  onClick={() => {
+                    if (confirm('End match now and view final recap & playing time summary?')) {
+                      onEndGame();
+                    }
+                  }}
+                  className="px-2 py-1 bg-red-600 hover:bg-red-500 active:scale-95 text-white font-extrabold text-[10px] sm:text-xs rounded-lg shadow flex items-center gap-1 transition shrink-0 animate-pulse"
+                  title="Final Period - End Match"
+                >
+                  <Flag className="w-3 h-3 fill-current" />
+                  <span>End</span>
                 </button>
               </div>
             ) : null}
@@ -255,7 +297,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Quick Utilities (Desktop) */}
         <div className="hidden sm:flex items-center gap-1 shrink-0">
-          {game && team && (
+          {!isBasketball && game && team && (
             <button
               onClick={onToggleCleanGoalie}
               className={`p-1.5 rounded-lg text-xs font-medium border transition ${
@@ -292,11 +334,11 @@ export const Header: React.FC<HeaderProps> = ({
                   onEndGame();
                 }
               }}
-              className="px-2 py-1 bg-slate-800 hover:bg-red-950/80 hover:text-red-400 border border-slate-700 hover:border-red-800/80 text-slate-300 active:scale-95 font-bold text-xs rounded-lg transition flex items-center gap-1"
+              className="px-2.5 py-1.5 bg-slate-800 hover:bg-red-950/80 hover:text-red-400 border border-slate-700 hover:border-red-800/80 text-slate-300 active:scale-95 font-bold text-xs rounded-lg transition flex items-center gap-1.5"
               title="End Match"
             >
-              <Flag className="w-3 h-3" />
-              <span>End</span>
+              <Flag className="w-3.5 h-3.5 text-red-400 fill-red-400/20" />
+              <span>End Game</span>
             </button>
           )}
         </div>

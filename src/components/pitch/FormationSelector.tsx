@@ -1,6 +1,7 @@
 import React from 'react';
 import { Formation, Game, Team } from '../../types/soccer';
 import { FORMATIONS, getFormationsByPlayerCount } from '../../data/formations';
+import { BASKETBALL_FORMATIONS } from '../../data/basketballSets';
 import { Compass, Sparkles, Shield, RefreshCw, Check } from 'lucide-react';
 
 interface FormationSelectorProps {
@@ -18,8 +19,12 @@ export const FormationSelector: React.FC<FormationSelectorProps> = ({
   onAutoFillStarters,
   onToggleCleanGoalie,
 }) => {
-  const currentFormation = FORMATIONS.find(f => f.id === game.formationId) || FORMATIONS[0];
-  const availableFormations = getFormationsByPlayerCount(game.formatPlayerCount);
+  const isBasketball = game.sport === 'basketball';
+  const allFormations = [...FORMATIONS, ...BASKETBALL_FORMATIONS];
+  const currentFormation = allFormations.find(f => f.id === game.formationId) || allFormations[0];
+  const availableFormations = isBasketball
+    ? BASKETBALL_FORMATIONS.filter(f => f.playerCount === game.formatPlayerCount)
+    : getFormationsByPlayerCount(game.formatPlayerCount);
 
   return (
     <div className="flex flex-col flex-1 min-h-full max-w-lg mx-auto w-full px-3 py-2 pb-32 space-y-4">
@@ -50,33 +55,35 @@ export const FormationSelector: React.FC<FormationSelectorProps> = ({
           Match Preferences & Rules
         </h3>
 
-        {/* Clean Goalie Swaps */}
-        <div className="flex items-center justify-between p-2.5 bg-slate-950/60 rounded-xl border border-slate-800/80">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-950 text-blue-400 border border-blue-800/60 flex items-center justify-center">
-              <Shield className="w-4 h-4" />
+        {/* Clean Goalie Swaps (Soccer only) */}
+        {!isBasketball && (
+          <div className="flex items-center justify-between p-2.5 bg-slate-950/60 rounded-xl border border-slate-800/80">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-blue-950 text-blue-400 border border-blue-800/60 flex items-center justify-center">
+                <Shield className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-white">Clean Goalie Swaps</div>
+                <p className="text-[11px] text-slate-400 leading-tight">
+                  Goalie is locked from outfield rotations (only swapped at halftime or keeper ⇄ bench)
+                </p>
+              </div>
             </div>
-            <div>
-              <div className="text-xs font-bold text-white">Clean Goalie Swaps</div>
-              <p className="text-[11px] text-slate-400 leading-tight">
-                Goalie is locked from outfield rotations (only swapped at halftime or keeper ⇄ bench)
-              </p>
-            </div>
-          </div>
 
-          <button
-            onClick={onToggleCleanGoalie}
-            className={`w-12 h-6 rounded-full transition-colors relative flex items-center px-0.5 ${
-              game.cleanGoalieSwaps ? 'bg-emerald-600' : 'bg-slate-700'
-            }`}
-          >
-            <span
-              className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                game.cleanGoalieSwaps ? 'translate-x-6' : 'translate-x-0'
+            <button
+              onClick={onToggleCleanGoalie}
+              className={`w-12 h-6 rounded-full transition-colors relative flex items-center px-0.5 ${
+                game.cleanGoalieSwaps ? 'bg-emerald-600' : 'bg-slate-700'
               }`}
-            />
-          </button>
-        </div>
+            >
+              <span
+                className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                  game.cleanGoalieSwaps ? 'translate-x-6' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+        )}
 
         {/* Sub Mode Display */}
         <div className="flex items-center justify-between p-2.5 bg-slate-950/60 rounded-xl border border-slate-800/80 text-xs">
@@ -126,11 +133,7 @@ export const FormationSelector: React.FC<FormationSelectorProps> = ({
                 </span>
               </div>
 
-              <p className="text-xs text-slate-300 leading-relaxed">
-                {formation.description}
-              </p>
-
-              <div className="mt-2 text-[11px] text-emerald-400/90 font-medium">
+              <div className="text-[11px] text-emerald-400/90 font-medium">
                 Best for: {formation.recommendedFor}
               </div>
 

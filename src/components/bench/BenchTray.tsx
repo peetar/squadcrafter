@@ -185,7 +185,9 @@ export const BenchTray: React.FC<BenchTrayProps> = ({
                         {player.preferredPositions.join(', ')}
                       </span>
                       <span>•</span>
-                      <span className="font-mono font-bold text-slate-300">Played: {formatPlayerMinutesRatio(state)}</span>
+                      <span className="font-mono font-bold text-slate-300">
+                        Played: {formatPlayerMinutesRatio(state, game.timeTrackingMode, game.currentPeriod)}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -202,7 +204,7 @@ export const BenchTray: React.FC<BenchTrayProps> = ({
                         : 'bg-slate-800 text-slate-300 border-slate-700'
                     }`}>
                       <Clock className="w-3 h-3" />
-                      <span>{formatPlayerMinutesRatio(state)}</span>
+                      <span>{formatPlayerMinutesRatio(state, game.timeTrackingMode, game.currentPeriod)}</span>
                     </div>
                     <div className="text-[10px] text-slate-500 mt-0.5">
                       Sat: {formatTime(sitSeconds)}

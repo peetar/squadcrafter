@@ -1,5 +1,7 @@
 import { Player, Formation, PlayerMatchState, QueuedSub } from '../types/soccer';
+import { SportType } from '../types/sport';
 import { getEffectiveSlotCategory, isWingPosition, isCenterPosition } from '../data/formations';
+import { checkSubPlaymakerImpact } from './balanceValidator';
 
 export interface SubRecommendation {
   playerIn: Player;
@@ -18,7 +20,8 @@ export function suggestSubsForFieldPlayer(
   players: Player[],
   formation: Formation,
   playerStates: Record<string, PlayerMatchState>,
-  cleanGoalieSwaps: boolean
+  cleanGoalieSwaps: boolean,
+  sport: SportType = 'soccer'
 ): SubRecommendation[] {
   const outState = playerStates[playerOut.id];
   if (!outState || outState.status !== 'on_field' || !outState.assignedSlotId) {
@@ -107,6 +110,17 @@ export function suggestSubsForFieldPlayer(
     const totalBenchMinutes = Math.floor((inState?.totalBenchSeconds || 0) / 60);
     score += totalBenchMinutes * 1.5;
 
+    // 5. Playmaker attribute preservation check
+    const activeFieldPlayers = players.filter(p => playerStates[p.id]?.status === 'on_field');
+    const impact = checkSubPlaymakerImpact(playerOut, pIn, activeFieldPlayers, sport);
+    if (impact.leavesMissingAttribute) {
+      score -= 20;
+      reasons.push(`⚠️ Leaves 0 ${impact.label}s`);
+    } else if (playerOut.playmakerAttributes?.some(a => pIn.playmakerAttributes?.includes(a))) {
+      score += 15;
+      reasons.push('Maintains Playmaker Trait');
+    }
+
     return {
       playerIn: pIn,
       playerOut,
@@ -128,7 +142,8 @@ export function suggestSubsForBenchPlayer(
   players: Player[],
   formation: Formation,
   playerStates: Record<string, PlayerMatchState>,
-  cleanGoalieSwaps: boolean
+  cleanGoalieSwaps: boolean,
+  sport: SportType = 'soccer'
 ): SubRecommendation[] {
   const inState = playerStates[playerIn.id];
   if (!inState || inState.status !== 'on_bench') return [];
@@ -204,6 +219,17 @@ export function suggestSubsForBenchPlayer(
     // 5. Total playing time balance
     const fieldMinutes = Math.floor(outState.totalFieldSeconds / 60);
     score += fieldMinutes * 1.5;
+
+    // 6. Playmaker attribute preservation check
+    const activeFieldPlayers = fieldPlayers;
+    const impact = checkSubPlaymakerImpact(pOut, playerIn, activeFieldPlayers, sport);
+    if (impact.leavesMissingAttribute) {
+      score -= 20;
+      reasons.push(`⚠️ Leaves 0 ${impact.label}s`);
+    } else if (playerIn.playmakerAttributes?.some(a => pOut.playmakerAttributes?.includes(a))) {
+      score += 15;
+      reasons.push('Maintains Playmaker Trait');
+    }
 
     recommendations.push({
       playerIn,

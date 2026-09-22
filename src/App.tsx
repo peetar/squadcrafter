@@ -22,8 +22,10 @@ import { GoalScorerModal } from './components/game/GoalScorerModal';
 import { PwaInstallModal } from './components/pwa/PwaInstallModal';
 import { extractPayloadFromInput, SharePayload } from './utils/shareCompression';
 import { FORMATIONS } from './data/formations';
+import { BASKETBALL_FORMATIONS } from './data/basketballSets';
+import { BasketballCourt } from './components/court/BasketballCourt';
 import { Player, Team, Game, PositionCategory, TacticalOverrideType } from './types/soccer';
-import { Plus, Play, Sparkles, Trophy, Users, ArrowLeftRight, CheckCircle2 } from 'lucide-react';
+import { Play, Users, ArrowLeftRight, CheckCircle2 } from 'lucide-react';
 
 export function App() {
   const store = useSoccerStore();
@@ -184,8 +186,9 @@ export function App() {
     },
   });
 
+  const allFormations = [...FORMATIONS, ...BASKETBALL_FORMATIONS];
   const activeFormation = store.activeGame 
-    ? (FORMATIONS.find(f => f.id === store.activeGame?.formationId) || FORMATIONS[0])
+    ? (allFormations.find(f => f.id === store.activeGame?.formationId) || allFormations[0])
     : FORMATIONS[0];
 
   const currentRoster = store.activeTeam?.players || [];
@@ -284,8 +287,8 @@ export function App() {
         {/* If no game is active, show Quick Start Match Hero if on Pitch/Bench/Tactics */}
         {!store.activeGame && (activeTab === 'pitch' || activeTab === 'bench' || activeTab === 'tactics') ? (
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto my-auto space-y-5">
-            <div className="w-16 h-16 rounded-3xl bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-3xl shadow-xl">
-              ⚽
+            <div className={`w-16 h-16 rounded-3xl ${store.activeTeam.sport === 'basketball' ? 'bg-amber-600/20 text-amber-400 border border-amber-500/30' : 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'} flex items-center justify-center text-3xl shadow-xl`}>
+              {store.activeTeam.sport === 'basketball' ? '🏀' : '⚽'}
             </div>
 
             <div>
@@ -301,17 +304,17 @@ export function App() {
               </div>
 
               <h2 className="text-xl font-black text-white tracking-tight">
-                Ready for Matchday?
+                Ready for Game Day?
               </h2>
               <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-                Start a game to begin tracking playing time, field formations, and smart bench rotations.
+                Start a game to begin tracking playing time, {store.activeTeam.sport === 'basketball' ? 'court sets' : 'field formations'}, and smart bench rotations.
               </p>
             </div>
 
             {/* Quick Action Button */}
             <button
               onClick={() => setShowNewGameModal(true)}
-              className="w-full py-3.5 px-6 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-98 text-white font-extrabold text-sm rounded-2xl shadow-xl flex items-center justify-center gap-2 transition"
+              className={`w-full py-3.5 px-6 ${store.activeTeam.sport === 'basketball' ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500' : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500'} active:scale-98 text-white font-extrabold text-sm rounded-2xl shadow-xl flex items-center justify-center gap-2 transition`}
             >
               <Play className="w-4 h-4 fill-current ml-0.5" />
               <span>Create New Game for {store.activeTeam.name}</span>
@@ -360,21 +363,37 @@ export function App() {
           </div>
         ) : (
           <>
-            {/* Tab 1: Pitch View */}
+            {/* Tab 1: Pitch / Court View */}
             {activeTab === 'pitch' && store.activeGame && (
-              <SoccerPitch
-                game={store.activeGame}
-                players={currentRoster}
-                formation={activeFormation}
-                onPlayerTap={handlePlayerTap}
-                onOpenBenchSwap={() => setShowFullBenchSwap(true)}
-                onOpenAutoFill={store.autoFillStartersAction}
-                onQueueSub={store.queueSub}
-                onSwapPositions={store.swapFieldPositions}
-                onDirectAssignSlot={store.assignBenchPlayerToSlot}
-                onAdvancePeriod={store.advancePeriod}
-                onEndGame={handleEndGame}
-              />
+              store.activeGame.sport === 'basketball' ? (
+                <BasketballCourt
+                  game={store.activeGame}
+                  players={currentRoster}
+                  formation={activeFormation}
+                  onPlayerTap={handlePlayerTap}
+                  onOpenBenchSwap={() => setShowFullBenchSwap(true)}
+                  onOpenAutoFill={store.autoFillStartersAction}
+                  onQueueSub={store.queueSub}
+                  onSwapPositions={store.swapFieldPositions}
+                  onDirectAssignSlot={store.assignBenchPlayerToSlot}
+                  onAdvancePeriod={store.advancePeriod}
+                  onEndGame={handleEndGame}
+                />
+              ) : (
+                <SoccerPitch
+                  game={store.activeGame}
+                  players={currentRoster}
+                  formation={activeFormation}
+                  onPlayerTap={handlePlayerTap}
+                  onOpenBenchSwap={() => setShowFullBenchSwap(true)}
+                  onOpenAutoFill={store.autoFillStartersAction}
+                  onQueueSub={store.queueSub}
+                  onSwapPositions={store.swapFieldPositions}
+                  onDirectAssignSlot={store.assignBenchPlayerToSlot}
+                  onAdvancePeriod={store.advancePeriod}
+                  onEndGame={handleEndGame}
+                />
+              )
             )}
 
             {/* Tab 2: Bench Tray */}
@@ -406,10 +425,9 @@ export function App() {
             {/* Tab 4: Team & Roster (Skill levels editable ONLY here) */}
             {activeTab === 'roster' && (
               <TeamRosterView
-                teams={store.teams}
                 activeTeam={store.activeTeam}
-                onSelectTeam={store.setActiveTeamId}
-                onAddTeam={store.addTeam}
+                onSwitchTeam={() => store.setActiveTeamId(null)}
+                onUpdateTeam={store.updateTeam}
                 onAddPlayer={store.addPlayer}
                 onUpdatePlayer={store.updatePlayer}
                 onDeletePlayer={store.deletePlayer}
@@ -535,6 +553,7 @@ export function App() {
           team={store.teams.find(t => t.id === selectedRecapGame.teamId) || store.activeTeam}
           players={store.teams.find(t => t.id === selectedRecapGame.teamId)?.players || currentRoster}
           isNewlyFinished={isNewlyFinished}
+          onUpdateScore={store.adjustScore}
           onClose={() => {
             setSelectedRecapGame(null);
             setIsNewlyFinished(false);

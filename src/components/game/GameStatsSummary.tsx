@@ -47,13 +47,20 @@ export const GameStatsSummary: React.FC<GameStatsSummaryProps> = ({
         .sort((a, b) => b.goals - a.goals)
     : [];
 
+  const isPeriodTracking = game?.timeTrackingMode === 'periods';
+  const effectivePeriodsTotal = Math.max(1, game?.currentPeriod || 1);
+
   // Sorted by playing time percentage
   const playingTimeData = game
     ? players.map(p => {
         const s = game.playerStates[p.id];
         const fieldSec = s?.totalFieldSeconds || 0;
         const benchSec = s?.totalBenchSeconds || 0;
-        const pct = Math.round((fieldSec / totalMatchSeconds) * 100);
+        const periodsPlayed = s?.periodsPlayed ? s.periodsPlayed.length : (s?.periodsPlayedCount || 0);
+
+        const pct = isPeriodTracking
+          ? Math.round((periodsPlayed / effectivePeriodsTotal) * 100)
+          : Math.round((fieldSec / totalMatchSeconds) * 100);
 
         const isAbsent = s?.status === 'absent';
 
@@ -63,13 +70,14 @@ export const GameStatsSummary: React.FC<GameStatsSummaryProps> = ({
           benchSeconds: benchSec,
           fieldMinutes: Math.round(fieldSec / 60),
           benchMinutes: Math.round(benchSec / 60),
+          periodsPlayed,
           percent: Math.min(pct, 100),
           isGoalie: p.canPlayGK,
           goals: s?.goals || 0,
           status: s?.status || 'on_bench',
           isAbsent,
         };
-      }).sort((a, b) => b.fieldSeconds - a.fieldSeconds)
+      }).sort((a, b) => isPeriodTracking ? b.periodsPlayed - a.periodsPlayed : b.fieldSeconds - a.fieldSeconds)
     : [];
 
   return (
@@ -299,6 +307,10 @@ export const GameStatsSummary: React.FC<GameStatsSummaryProps> = ({
                       <div className="font-mono text-xs flex items-center gap-2">
                         {item.isAbsent && item.fieldMinutes === 0 && item.benchMinutes === 0 ? (
                           <span className="text-slate-500 text-[11px]">Unavailable</span>
+                        ) : isPeriodTracking ? (
+                          <span className="text-emerald-400 font-bold font-mono">
+                            {item.periodsPlayed}/{game.currentPeriod} periods
+                          </span>
                         ) : (
                           <>
                             <span className="text-emerald-400 font-bold">{item.fieldMinutes}m played</span>
@@ -329,26 +341,48 @@ export const GameStatsSummary: React.FC<GameStatsSummaryProps> = ({
             </div>
           </div>
 
-          {/* Match Events Log */}
-          <div className="space-y-2">
-            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider px-1 flex items-center gap-1.5">
-              <History className="w-3.5 h-3.5" />
-              <span>Match Event Timeline</span>
-            </h3>
+          {/* Match Events Log (Selectable & Copyable) */}
+          <div className="space-y-2 select-text">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5 select-none">
+                <History className="w-3.5 h-3.5" />
+                <span>Match Event Timeline</span>
+              </h3>
+              {game.events.length > 0 && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const text = [...game.events]
+                      .reverse()
+                      .map(e => `[${formatTime(e.matchSecond)}] ${e.description}`)
+                      .join('\n');
+                    try {
+                      await navigator.clipboard.writeText(text);
+                    } catch {
+                      window.prompt('Match Events:', text);
+                    }
+                  }}
+                  className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 select-none active:scale-95 transition"
+                  title="Copy timeline events to clipboard"
+                >
+                  Copy Timeline
+                </button>
+              )}
+            </div>
 
-            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-3 max-h-48 overflow-y-auto space-y-1.5">
+            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-3 max-h-48 overflow-y-auto space-y-1.5 select-text cursor-text">
               {game.events.length === 0 ? (
-                <div className="text-xs text-slate-500 text-center py-3">No events recorded yet.</div>
+                <div className="text-xs text-slate-500 text-center py-3 select-none">No events recorded yet.</div>
               ) : (
                 [...game.events].reverse().map(evt => (
                   <div
                     key={evt.id}
-                    className="flex items-start gap-2 text-xs py-1 border-b border-slate-800/50 last:border-0"
+                    className="flex items-start gap-2 text-xs py-1 border-b border-slate-800/50 last:border-0 select-text"
                   >
-                    <span className="font-mono font-bold text-slate-400 text-[10px] w-10 flex-shrink-0 pt-0.5">
+                    <span className="font-mono font-bold text-slate-400 text-[10px] w-10 flex-shrink-0 pt-0.5 select-text">
                       {formatTime(evt.matchSecond)}
                     </span>
-                    <span className="text-slate-200">{evt.description}</span>
+                    <span className="text-slate-200 select-text">{evt.description}</span>
                   </div>
                 ))
               )}
