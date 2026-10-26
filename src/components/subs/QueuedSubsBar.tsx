@@ -51,10 +51,10 @@ export const QueuedSubsBar: React.FC<QueuedSubsBarProps> = ({
   }
 
   return (
-    <div className="fixed top-[49px] sm:top-[53px] left-0 right-0 z-40 px-2.5 sm:px-4 pointer-events-none flex flex-col items-center">
-      <div className="max-w-md w-full bg-slate-900/98 backdrop-blur-md border border-emerald-500/80 rounded-2xl shadow-2xl pointer-events-auto text-white transition-all overflow-hidden">
+    <div className="w-full bg-slate-900/95 border-b border-emerald-500/50 shadow-md px-2.5 sm:px-4 py-1.5 z-20 shrink-0 animate-in fade-in slide-in-from-top-1 duration-150">
+      <div className="max-w-md mx-auto w-full text-white">
         {/* Compact Single-Row Bar (Default) */}
-        <div className="flex items-center justify-between gap-2 px-3 py-1.5">
+        <div className="flex items-center justify-between gap-2">
           {/* Left: Indicator & Quick Summary (Tappable to expand details) */}
           <button
             type="button"
@@ -70,7 +70,7 @@ export const QueuedSubsBar: React.FC<QueuedSubsBarProps> = ({
             </div>
 
             <div className="flex items-center gap-1 min-w-0 text-xs">
-              <span className="font-extrabold text-white truncate max-w-[140px] sm:max-w-[180px]">
+              <span className="font-extrabold text-white truncate max-w-[140px] sm:max-w-[220px]">
                 {summaryText}
               </span>
               <span className="text-slate-400 text-[10px] shrink-0 flex items-center gap-0.5 ml-0.5">
@@ -104,7 +104,7 @@ export const QueuedSubsBar: React.FC<QueuedSubsBarProps> = ({
 
         {/* Expandable Details Drawer */}
         {isExpanded && (
-          <div className="border-t border-slate-800 px-3 py-2 space-y-2 bg-slate-950/60 animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="mt-2 pt-2 border-t border-slate-800 space-y-2 animate-in fade-in slide-in-from-top-1 duration-150">
             <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold px-0.5">
               <span>Staged Rotations ({subCount})</span>
               <button

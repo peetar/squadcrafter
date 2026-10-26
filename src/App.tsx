@@ -282,6 +282,18 @@ export function App() {
         onEndGame={handleEndGame}
       />
 
+      {/* Queued Substitutions Banner (In-flow right below Header, shifts pitch down cleanly) */}
+      {store.activeGame && (
+        <QueuedSubsBar
+          game={store.activeGame}
+          players={currentRoster}
+          formation={activeFormation}
+          onConfirmSubs={store.confirmQueuedSubs}
+          onCancelSub={store.cancelQueuedSub}
+          onClearAll={store.clearQueuedSubs}
+        />
+      )}
+
       {/* Main Content Viewport */}
       <main className="flex-1 min-h-0 flex flex-col overflow-y-auto">
         {/* If no game is active, show Quick Start Match Hero if on Pitch/Bench/Tactics */}
@@ -426,6 +438,7 @@ export function App() {
             {activeTab === 'roster' && (
               <TeamRosterView
                 activeTeam={store.activeTeam}
+                isGameActive={Boolean(store.activeGame)}
                 onSwitchTeam={() => store.setActiveTeamId(null)}
                 onUpdateTeam={store.updateTeam}
                 onAddPlayer={store.addPlayer}
@@ -457,18 +470,6 @@ export function App() {
           </>
         )}
       </main>
-
-      {/* Queued Substitutions Floating Bar */}
-      {store.activeGame && (
-        <QueuedSubsBar
-          game={store.activeGame}
-          players={currentRoster}
-          formation={activeFormation}
-          onConfirmSubs={store.confirmQueuedSubs}
-          onCancelSub={store.cancelQueuedSub}
-          onClearAll={store.clearQueuedSubs}
-        />
-      )}
 
       {/* Bottom Navigation */}
       <Navigation

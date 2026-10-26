@@ -7,6 +7,7 @@ interface PlayerFormModalProps {
   player?: Player | null;
   teamId: string;
   sport?: SportType;
+  isGuest?: boolean;
   onClose: () => void;
   onSave: (playerData: Omit<Player, 'id' | 'teamId'> & { id?: string }) => void;
 }
@@ -14,6 +15,7 @@ interface PlayerFormModalProps {
 export const PlayerFormModal: React.FC<PlayerFormModalProps> = ({
   player,
   sport = 'soccer',
+  isGuest = false,
   onClose,
   onSave,
 }) => {
@@ -75,9 +77,12 @@ export const PlayerFormModal: React.FC<PlayerFormModalProps> = ({
       isStarter,
       playmakerAttributes,
       notes: notes.trim(),
+      isGuest: Boolean(isGuest || player?.isGuest),
     });
     onClose();
   };
+
+  const isGuestMode = Boolean(isGuest || player?.isGuest);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-3">
@@ -87,10 +92,17 @@ export const PlayerFormModal: React.FC<PlayerFormModalProps> = ({
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-slate-800">
-          <h3 className="font-extrabold text-base text-white flex items-center gap-2">
-            <span>{isBasketball ? '🏀' : '⚽'}</span>
-            <span>{player ? 'Edit Player' : 'Add New Player'}</span>
-          </h3>
+          <div>
+            <h3 className="font-extrabold text-base text-white flex items-center gap-2">
+              <span>{isBasketball ? '🏀' : '⚽'}</span>
+              <span>{player ? (isGuestMode ? 'Edit Guest Player' : 'Edit Player') : (isGuestMode ? 'Add Temporary Guest Player' : 'Add New Player')}</span>
+            </h3>
+            {isGuestMode && (
+              <p className="text-[11px] text-amber-400 font-medium mt-0.5">
+                Active match only — will be automatically removed when the match ends.
+              </p>
+            )}
+          </div>
           <button
             onClick={onClose}
             className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition"

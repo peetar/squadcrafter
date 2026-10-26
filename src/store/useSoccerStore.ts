@@ -138,8 +138,16 @@ function loadInitialState(): AppState {
     if (saved) {
       const parsed = JSON.parse(saved);
       if (parsed.teams && Array.isArray(parsed.teams)) {
+        let loadedTeams: Team[] = parsed.teams;
+        // If there is no active game, clean up any leftover guest players
+        if (!parsed.activeGame) {
+          loadedTeams = loadedTeams.map(t => ({
+            ...t,
+            players: t.players.filter(p => !p.isGuest),
+          }));
+        }
         return {
-          teams: parsed.teams,
+          teams: loadedTeams,
           activeTeamId: null, // Always land on team selection screen as requested!
           activeGame: parsed.activeGame ? reconcileLineupIntegrity(parsed.activeGame) : null,
           savedGames: parsed.savedGames || [],
@@ -319,16 +327,40 @@ export function useSoccerStore() {
       id: 'p-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
       teamId,
     };
-    setState(prev => ({
-      ...prev,
-      teams: prev.teams.map(t => {
-        if (t.id !== teamId) return t;
-        return {
-          ...t,
-          players: [...t.players, newPlayer],
+    setState(prev => {
+      let updatedActiveGame = prev.activeGame;
+      if (updatedActiveGame && updatedActiveGame.teamId === teamId) {
+        updatedActiveGame = {
+          ...updatedActiveGame,
+          playerStates: {
+            ...updatedActiveGame.playerStates,
+            [newPlayer.id]: {
+              playerId: newPlayer.id,
+              status: 'on_bench',
+              totalFieldSeconds: 0,
+              totalBenchSeconds: 0,
+              currentStintSeconds: 0,
+              periodsPlayedCount: 0,
+              periodsPlayed: [],
+              isTired: false,
+              goals: 0,
+            },
+          },
         };
-      }),
-    }));
+      }
+
+      return {
+        ...prev,
+        teams: prev.teams.map(t => {
+          if (t.id !== teamId) return t;
+          return {
+            ...t,
+            players: [...t.players, newPlayer],
+          };
+        }),
+        activeGame: updatedActiveGame,
+      };
+    });
     return newPlayer;
   }, []);
 
@@ -346,16 +378,32 @@ export function useSoccerStore() {
   }, []);
 
   const deletePlayer = useCallback((teamId: string, playerId: string) => {
-    setState(prev => ({
-      ...prev,
-      teams: prev.teams.map(t => {
-        if (t.id !== teamId) return t;
-        return {
-          ...t,
-          players: t.players.filter(p => p.id !== playerId),
-        };
-      }),
-    }));
+    setState(prev => {
+      let updatedActiveGame = prev.activeGame;
+      if (updatedActiveGame && updatedActiveGame.teamId === teamId) {
+        const nextPlayerStates = { ...updatedActiveGame.playerStates };
+        delete nextPlayerStates[playerId];
+        updatedActiveGame = reconcileLineupIntegrity({
+          ...updatedActiveGame,
+          playerStates: nextPlayerStates,
+          queuedSubs: updatedActiveGame.queuedSubs.filter(
+            q => q.playerInId !== playerId && q.playerOutId !== playerId
+          ),
+        });
+      }
+
+      return {
+        ...prev,
+        teams: prev.teams.map(t => {
+          if (t.id !== teamId) return t;
+          return {
+            ...t,
+            players: t.players.filter(p => p.id !== playerId),
+          };
+        }),
+        activeGame: updatedActiveGame,
+      };
+    });
   }, []);
 
   // ---------------- Game Management ----------------
@@ -369,7 +417,12 @@ export function useSoccerStore() {
     periodsTotal: number = 2,
     periodDurationMinutes: number = 25
   ) => {
-    const team = state.teams.find(t => t.id === teamId) || activeTeam || state.teams[0];
+    // Clean up any guest players from teams before initializing a new game
+    const cleanedTeams = state.teams.map(t => ({
+      ...t,
+      players: t.players.filter(p => !p.isGuest),
+    }));
+    const team = cleanedTeams.find(t => t.id === teamId) || (activeTeam ? { ...activeTeam, players: activeTeam.players.filter(p => !p.isGuest) } : cleanedTeams[0]);
     if (!team) return null;
 
     const isBasketball = (team.sport === 'basketball') || formatPlayerCount === 5;
@@ -433,6 +486,10 @@ export function useSoccerStore() {
 
     setState(prev => ({
       ...prev,
+      teams: prev.teams.map(t => ({
+        ...t,
+        players: t.players.filter(p => !p.isGuest),
+      })),
       activeGame: reconcileLineupIntegrity(newGame),
     }));
 
@@ -1247,6 +1304,10 @@ export function useSoccerStore() {
       };
       return {
         ...prev,
+        teams: prev.teams.map(t => ({
+          ...t,
+          players: t.players.filter(p => !p.isGuest),
+        })),
         activeGame: null,
         savedGames: [finishedGame, ...prev.savedGames],
       };

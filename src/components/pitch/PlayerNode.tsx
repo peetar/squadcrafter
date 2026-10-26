@@ -124,11 +124,16 @@ export const PlayerNode: React.FC<PlayerNodeProps> = ({
 
       {/* Player Label Pill (Name + Role + Stint Time) */}
       <div className="mt-1 flex flex-col items-center pointer-events-none">
-        <div className={`px-1.5 py-0.5 rounded text-[10px] font-bold shadow flex items-center gap-1 border max-w-[76px] truncate transition-colors ${
+        <div className={`px-1.5 py-0.5 rounded text-[10px] font-bold shadow flex items-center gap-1 border max-w-[80px] truncate transition-colors ${
           isHoveredTarget 
             ? 'bg-emerald-900 text-emerald-200 border-emerald-500' 
             : 'bg-slate-900/90 text-white border-slate-700/60'
         }`}>
+          {player.isGuest && (
+            <span className="text-[7px] font-black uppercase px-0.5 rounded bg-purple-600 text-white shrink-0" title="Guest Player">
+              G
+            </span>
+          )}
           <span className="truncate">{displayName}</span>
           <span className="text-[8px] px-1 py-0.2 rounded bg-slate-800 text-slate-300 font-mono">
             {role}

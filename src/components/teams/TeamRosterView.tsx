@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { Team, Player } from '../../types/soccer';
 import { TimeTrackingMode, ClockDirection, PLAYMAKER_ATTRIBUTES } from '../../types/sport';
 import { PlayerFormModal } from '../player/PlayerFormModal';
-import { Users2, Plus, Edit2, Trash2, Star, QrCode, Settings2, X, ArrowLeftRight } from 'lucide-react';
+import { Users2, Plus, Edit2, Trash2, Star, QrCode, Settings2, X, ArrowLeftRight, UserPlus } from 'lucide-react';
 
 interface TeamRosterViewProps {
   activeTeam: Team;
+  isGameActive?: boolean;
   onSwitchTeam?: () => void;
   onUpdateTeam?: (team: Team) => void;
   onAddPlayer: (teamId: string, player: Omit<Player, 'id' | 'teamId'>) => void;
@@ -16,6 +17,7 @@ interface TeamRosterViewProps {
 
 export const TeamRosterView: React.FC<TeamRosterViewProps> = ({
   activeTeam,
+  isGameActive = false,
   onSwitchTeam,
   onUpdateTeam,
   onAddPlayer,
@@ -23,7 +25,7 @@ export const TeamRosterView: React.FC<TeamRosterViewProps> = ({
   onDeletePlayer,
   onShareTeam,
 }) => {
-  const [editingPlayer, setEditingPlayer] = useState<Player | null | 'new'>(null);
+  const [editingPlayer, setEditingPlayer] = useState<Player | null | 'new' | 'guest'>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   // Team Settings Edit State
@@ -134,13 +136,25 @@ export const TeamRosterView: React.FC<TeamRosterViewProps> = ({
             </button>
           )}
 
-          <button
-            onClick={() => setEditingPlayer('new')}
-            className="flex items-center gap-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow transition"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add Player</span>
-          </button>
+          <div className="flex flex-col gap-1.5 shrink-0">
+            <button
+              onClick={() => setEditingPlayer('new')}
+              className="flex items-center justify-center gap-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow transition"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Player</span>
+            </button>
+            {isGameActive && (
+              <button
+                onClick={() => setEditingPlayer('guest')}
+                className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-purple-700 hover:bg-purple-600 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow border border-purple-500/40 transition"
+                title="Add temporary guest player for this match only"
+              >
+                <UserPlus className="w-3.5 h-3.5 text-purple-200" />
+                <span>+ Temp Player</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -186,6 +200,11 @@ export const TeamRosterView: React.FC<TeamRosterViewProps> = ({
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 font-bold text-sm text-white truncate">
                     <span className="truncate">{p.name}</span>
+                    {p.isGuest && (
+                      <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-purple-950/80 text-purple-300 border border-purple-700/60 shrink-0">
+                        Guest
+                      </span>
+                    )}
                     {p.canPlayGK && (
                       <span className="text-[9px] font-bold bg-amber-400/20 text-amber-400 border border-amber-400/40 px-1 py-0.2 rounded shrink-0">
                         GK
@@ -255,7 +274,8 @@ export const TeamRosterView: React.FC<TeamRosterViewProps> = ({
       {/* Edit/Add Player Modal */}
       {editingPlayer && (
         <PlayerFormModal
-          player={editingPlayer === 'new' ? null : editingPlayer}
+          player={typeof editingPlayer === 'object' ? editingPlayer : null}
+          isGuest={editingPlayer === 'guest' || (typeof editingPlayer === 'object' && Boolean(editingPlayer?.isGuest))}
           teamId={activeTeam.id}
           sport={activeTeam.sport || 'soccer'}
           onClose={() => setEditingPlayer(null)}

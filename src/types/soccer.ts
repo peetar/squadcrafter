@@ -18,6 +18,7 @@ export interface Player {
   preferredPositions: PositionCategory[];
   canPlayGK: boolean;
   isStarter?: boolean;
+  isGuest?: boolean; // Temporary guest player for the active match only
   playmakerAttributes?: PlaymakerAttribute[];
   notes?: string;
 }
